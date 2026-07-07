@@ -22,6 +22,7 @@ type LoadState =
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const [activeModule, setActiveModule] = useState("dashboard");
 
   useEffect(() => {
     const token = window.localStorage.getItem(TOKEN_KEY);
@@ -63,6 +64,34 @@ export default function AdminDashboardPage() {
     router.push("/admin/login");
   };
 
+  const moduleKey = (moduleName: string) => {
+    const map: Record<string, string> = {
+      Dashboard: "dashboard",
+      Orders: "orders",
+      Menu: "foods",
+      Stock: "stock",
+      Coupons: "coupons",
+      Delivery: "delivery-areas",
+      Payments: "orders",
+      CMS: "cms",
+      Users: "users",
+      Reports: "reports",
+      Settings: "settings"
+    };
+
+    return map[moduleName] || "dashboard";
+  };
+
+  const openModule = (key: string) => {
+    setActiveModule(key);
+    window.setTimeout(() => {
+      document.getElementById(key === "dashboard" ? "admin-dashboard" : "admin-operations")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 0);
+  };
+
   if (state.status === "loading") {
     return (
       <main className="flex min-h-screen items-center justify-center bg-cream px-5 text-ink">
@@ -95,14 +124,21 @@ export default function AdminDashboardPage() {
           </div>
           <nav className="mt-8 grid gap-2 text-sm font-semibold">
             {state.dashboard.modules.map((moduleName) => (
-              <span className="rounded-md px-3 py-2 text-white/80 hover:bg-white/10" key={moduleName}>
+              <button
+                className={`rounded-md px-3 py-2 text-left text-white/80 hover:bg-white/10 ${
+                  activeModule === moduleKey(moduleName) ? "bg-white/10 text-white" : ""
+                }`}
+                key={moduleName}
+                onClick={() => openModule(moduleKey(moduleName))}
+                type="button"
+              >
                 {moduleName}
-              </span>
+              </button>
             ))}
           </nav>
         </aside>
 
-        <section className="px-5 py-6 lg:px-8">
+        <section className="px-5 py-6 lg:px-8" id="admin-dashboard">
           <header className="flex flex-col justify-between gap-4 border-b border-black/10 pb-5 sm:flex-row sm:items-center">
             <div>
               <p className="text-sm font-bold text-herb">{state.user.role?.name || "Admin"}</p>
@@ -157,7 +193,13 @@ export default function AdminDashboardPage() {
             </div>
           </section>
 
-          <AdminOperations token={state.token} />
+          <AdminOperations
+            activeKey={activeModule === "dashboard" ? "orders" : activeModule}
+            dashboard={state.dashboard}
+            onActiveChange={setActiveModule}
+            settings={state.settings}
+            token={state.token}
+          />
         </section>
       </div>
     </main>

@@ -9,9 +9,11 @@ import {
   listAdminResource,
   listStockLogs,
   updateAdminResource,
+  updateAdminSettings,
   updateOrderPayment,
   updateOrderStatus
 } from "@/lib/adminApi";
+import type { AdminDashboardResponse, AdminSettings } from "@/types/admin";
 
 type ResourceConfig = {
   key: string;
@@ -97,10 +99,19 @@ const getTitle = (item: Record<string, unknown>) => {
 
 const parseJson = (value: string) => JSON.parse(value) as Record<string, unknown>;
 
-export function AdminOperations({ token }: { token: string }) {
-  const [active, setActive] = useState("orders");
+type AdminOperationsProps = {
+  token: string;
+  activeKey: string;
+  onActiveChange: (key: string) => void;
+  dashboard: AdminDashboardResponse;
+  settings: AdminSettings;
+};
+
+export function AdminOperations({ token, activeKey, onActiveChange, dashboard, settings }: AdminOperationsProps) {
+  const active = activeKey;
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
   const [formValue, setFormValue] = useState("");
+  const [settingsValue, setSettingsValue] = useState(JSON.stringify(settings, null, 2));
   const [selectedId, setSelectedId] = useState("");
   const [status, setStatus] = useState("Confirmed");
   const [paymentStatus, setPaymentStatus] = useState("Paid");
@@ -122,6 +133,8 @@ export function AdminOperations({ token }: { token: string }) {
       } else if (active === "stock") {
         const data = await listStockLogs(token);
         setItems(data.items);
+      } else if (active === "reports" || active === "settings") {
+        setItems([]);
       } else if (activeResource) {
         const data = await listAdminResource(token, activeResource.key);
         setItems(data.items);
@@ -143,12 +156,25 @@ export function AdminOperations({ token }: { token: string }) {
 
   const changeActive = (key: string) => {
     const resource = resources.find((item) => item.key === key);
-    setActive(key);
+    onActiveChange(key);
     setItems([]);
     setSelectedId("");
     setFormValue(resource ? JSON.stringify(resource.template, null, 2) : "");
     setMessage("");
     setError("");
+  };
+
+  const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      const updated = await updateAdminSettings(token, parseJson(settingsValue));
+      setSettingsValue(JSON.stringify(updated, null, 2));
+      setMessage("Settings updated successfully.");
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Settings update failed");
+    }
   };
 
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -236,7 +262,7 @@ export function AdminOperations({ token }: { token: string }) {
   };
 
   return (
-    <section className="mt-6 rounded-lg border border-black/10 bg-white p-5">
+    <section className="mt-6 rounded-lg border border-black/10 bg-white p-5" id="admin-operations">
       <div className="flex flex-wrap gap-2">
         <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "orders" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("orders")}>Orders</button>
         <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "stock" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("stock")}>Stock</button>
@@ -245,14 +271,45 @@ export function AdminOperations({ token }: { token: string }) {
             {resource.label}
           </button>
         ))}
+        <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "reports" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("reports")}>Reports</button>
+        <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "settings" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("settings")}>Settings</button>
       </div>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_420px]">
         <div>
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xl font-black">{activeResource?.label || (active === "stock" ? "Stock logs" : "Orders")}</h3>
+            <h3 className="text-xl font-black">{activeResource?.label || (active === "stock" ? "Stock logs" : active === "reports" ? "Reports" : active === "settings" ? "Settings" : "Orders")}</h3>
             <button className="rounded-md border border-black/15 px-3 py-2 text-sm font-bold" onClick={load}>{loading ? "Loading..." : "Refresh"}</button>
           </div>
+          {active === "reports" ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                ["Total orders", dashboard.totalOrders ?? 0],
+                ["Pending orders", dashboard.pendingOrders ?? 0],
+                ["Completed orders", dashboard.completedOrders ?? 0],
+                ["Cancelled orders", dashboard.cancelledOrders ?? 0],
+                ["Total sales", `BDT ${dashboard.totalSales ?? 0}`]
+              ].map(([label, value]) => (
+                <div className="rounded-md bg-cream p-4" key={label}>
+                  <p className="text-sm font-bold text-ink/60">{label}</p>
+                  <p className="mt-1 text-2xl font-black">{value}</p>
+                </div>
+              ))}
+              <div className="rounded-md bg-cream p-4 md:col-span-2">
+                <p className="text-sm font-black">Best-selling foods</p>
+                <div className="mt-2 grid gap-2">
+                  {(dashboard.bestSelling || []).length === 0 ? <p className="text-sm text-ink/60">No sales data yet.</p> : null}
+                  {(dashboard.bestSelling || []).map((food) => (
+                    <div className="flex justify-between text-sm" key={food._id}>
+                      <span>{food._id}</span>
+                      <strong>{food.quantity} sold / BDT {food.sales}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+          {active !== "reports" && active !== "settings" ? (
           <div className="grid max-h-[560px] gap-2 overflow-auto">
             {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
             {items.map((item) => (
@@ -262,6 +319,7 @@ export function AdminOperations({ token }: { token: string }) {
               </button>
             ))}
           </div>
+          ) : null}
         </div>
 
         <div>
@@ -298,6 +356,14 @@ export function AdminOperations({ token }: { token: string }) {
               <textarea id="stock-json" className="mt-2 min-h-40 w-full rounded-md border border-black/15 px-3 py-3 font-mono text-xs" value={stockForm} onChange={(event) => setStockForm(event.target.value)} />
               <button className="mt-3 rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Adjust stock</button>
               {selectedId ? <pre className="mt-3 max-h-[260px] overflow-auto rounded-md bg-cream p-3 text-xs">{formValue}</pre> : null}
+            </form>
+          ) : null}
+
+          {active === "settings" ? (
+            <form onSubmit={submitSettings}>
+              <label className="text-sm font-bold" htmlFor="settings-json">Settings JSON</label>
+              <textarea id="settings-json" className="mt-2 min-h-[420px] w-full rounded-md border border-black/15 px-3 py-3 font-mono text-xs" value={settingsValue} onChange={(event) => setSettingsValue(event.target.value)} />
+              <button className="mt-3 rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Update settings</button>
             </form>
           ) : null}
 

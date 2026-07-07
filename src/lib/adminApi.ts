@@ -51,6 +51,13 @@ export const getAdminSettings = (token: string) =>
     headers: authHeader(token)
   });
 
+export const updateAdminSettings = (token: string, body: Record<string, unknown>) =>
+  request<AdminSettings>("/admin/settings", {
+    method: "PATCH",
+    headers: authHeader(token),
+    body: JSON.stringify(body)
+  });
+
 export type AdminListResponse = {
   items: Array<Record<string, unknown>>;
   pagination?: {
