@@ -28,6 +28,16 @@ type ResourceConfig = {
   fields: Field[];
 };
 
+type StockInventoryItem = {
+  id: string;
+  type: "foodItem" | "variation" | "addOn";
+  label: string;
+  parent?: string;
+  quantity: number;
+  threshold: number;
+  available: boolean;
+};
+
 const resources: ResourceConfig[] = [
   {
     key: "categories",
@@ -203,6 +213,18 @@ const actorName = (value: unknown) => {
   if (value && typeof value === "object" && "name" in value) return text((value as Record<string, unknown>).name);
   return value ? text(value) : "System";
 };
+const stockTypeLabel = (value: unknown) => {
+  const type = text(value);
+  if (type === "foodItem") return "Food item";
+  if (type === "addOn") return "Add-on";
+  return type ? type.charAt(0).toUpperCase() + type.slice(1) : "Stock item";
+};
+const stockStatus = (item: StockInventoryItem) => {
+  if (!item.available) return { label: "Unavailable", className: "bg-ink/10 text-ink/60" };
+  if (item.quantity <= 0) return { label: "Out of stock", className: "bg-tomato/10 text-tomato" };
+  if (item.quantity <= item.threshold) return { label: "Low stock", className: "bg-amber-100 text-amber-700" };
+  return { label: "In stock", className: "bg-herb/10 text-herb" };
+};
 
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
@@ -236,6 +258,44 @@ const buildPayload = (resource: string, form: Record<string, string | number | b
   return Object.fromEntries(Object.entries(form).map(([key, value]) => [key, typeof value === "number" ? Number(value) : value]));
 };
 
+const buildStockInventory = (foods: Array<Record<string, unknown>>, addons: Array<Record<string, unknown>>): StockInventoryItem[] => {
+  const foodItems = foods.map((food) => ({
+    id: getId(food),
+    type: "foodItem" as const,
+    label: getTitle(food),
+    quantity: number(food.stockQuantity),
+    threshold: number(food.lowStockThreshold),
+    available: food.isAvailable !== false
+  }));
+  const variations = foods.flatMap((food) => {
+    const parent = getTitle(food);
+    return Array.isArray(food.variations)
+      ? food.variations.map((variation) => {
+          const entry = variation as Record<string, unknown>;
+          return {
+            id: getId(entry),
+            type: "variation" as const,
+            label: localized(entry.name, "en") || "Unnamed variation",
+            parent,
+            quantity: number(entry.stockQuantity),
+            threshold: number(entry.lowStockThreshold),
+            available: entry.isAvailable !== false
+          };
+        })
+      : [];
+  });
+  const addOnItems = addons.map((addon) => ({
+    id: getId(addon),
+    type: "addOn" as const,
+    label: getTitle(addon),
+    quantity: number(addon.stockQuantity),
+    threshold: number(addon.lowStockThreshold),
+    available: addon.isAvailable !== false
+  }));
+
+  return [...foodItems, ...variations, ...addOnItems].filter((item) => item.id);
+};
+
 type AdminOperationsProps = {
   token: string;
   activeKey: string;
@@ -249,6 +309,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
   const [form, setForm] = useState<Record<string, string | number | boolean>>(defaultValues[active] || {});
   const [roles, setRoles] = useState<Array<Record<string, unknown>>>([]);
+  const [stockInventory, setStockInventory] = useState<StockInventoryItem[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [drawerItem, setDrawerItem] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState("Confirmed");
@@ -276,8 +337,15 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         const data = await listAdminOrders(token);
         setItems(data.items);
       } else if (active === "stock") {
-        const data = await listStockLogs(token);
-        setItems(data.items);
+        const [logs, foods, addons] = await Promise.all([
+          listStockLogs(token),
+          listAdminResource(token, "foods"),
+          listAdminResource(token, "addons")
+        ]);
+        const inventory = buildStockInventory(foods.items, addons.items);
+        setItems(logs.items);
+        setStockInventory(inventory);
+        setStockForm((current) => (current.itemId || !inventory[0] ? current : { ...current, itemType: inventory[0].type, itemId: inventory[0].id }));
       } else if (active === "reports" || active === "settings") {
         setItems([]);
       } else if (activeResource) {
@@ -456,6 +524,9 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     }
   };
 
+  const stockOptions = stockInventory.filter((item) => item.type === stockForm.itemType);
+  const selectedStockItem = stockInventory.find((item) => item.type === stockForm.itemType && item.id === stockForm.itemId);
+
   return (
     <section className="mt-6 rounded-lg border border-black/10 bg-white p-5" id="admin-operations">
       <div className="flex flex-wrap gap-2">
@@ -584,7 +655,114 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
           ) : null}
 
-          {active !== "orders" && active !== "contacts" && active !== "reports" && active !== "settings" ? (
+          {active === "stock" ? (
+            <div className="grid gap-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["Tracked items", stockInventory.length],
+                  ["In stock", stockInventory.filter((item) => item.available && item.quantity > item.threshold).length],
+                  ["Low stock", stockInventory.filter((item) => item.available && item.quantity > 0 && item.quantity <= item.threshold).length],
+                  ["Out / unavailable", stockInventory.filter((item) => !item.available || item.quantity <= 0).length]
+                ].map(([label, value]) => (
+                  <div className="rounded-md bg-cream p-4" key={label}>
+                    <p className="text-xs font-bold uppercase text-ink/55">{label}</p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto rounded-md border border-black/10">
+                <table className="w-full min-w-[780px] border-collapse text-left text-sm">
+                  <thead className="bg-cream text-xs uppercase text-ink/60">
+                    <tr>
+                      <th className="px-3 py-3">Item</th>
+                      <th className="px-3 py-3">Type</th>
+                      <th className="px-3 py-3">Current stock</th>
+                      <th className="px-3 py-3">Low alert</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stockInventory.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-ink/60" colSpan={6}>No stock items found. Add foods, variations, or add-ons first.</td>
+                      </tr>
+                    ) : null}
+                    {stockInventory.map((stockItem) => {
+                      const statusInfo = stockStatus(stockItem);
+
+                      return (
+                        <tr className="border-t border-black/10 hover:bg-cream/60" key={`${stockItem.type}-${stockItem.id}`}>
+                          <td className="px-3 py-3">
+                            <p className="font-black">{stockItem.label}</p>
+                            {stockItem.parent ? <p className="text-xs text-ink/55">{stockItem.parent}</p> : null}
+                          </td>
+                          <td className="px-3 py-3">{stockTypeLabel(stockItem.type)}</td>
+                          <td className="px-3 py-3 font-black">{stockItem.quantity}</td>
+                          <td className="px-3 py-3">{stockItem.threshold}</td>
+                          <td className="px-3 py-3">
+                            <span className={`rounded-md px-2 py-1 text-xs font-bold ${statusInfo.className}`}>{statusInfo.label}</span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <button
+                              className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold"
+                              onClick={() => setStockForm((current) => ({ ...current, itemType: stockItem.type, itemId: stockItem.id }))}
+                              type="button"
+                            >
+                              Adjust
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 className="mb-3 font-black">Recent stock movement</h4>
+                <div className="overflow-x-auto rounded-md border border-black/10">
+                  <table className="w-full min-w-[780px] border-collapse text-left text-sm">
+                    <thead className="bg-cream text-xs uppercase text-ink/60">
+                      <tr>
+                        <th className="px-3 py-3">Item</th>
+                        <th className="px-3 py-3">Change</th>
+                        <th className="px-3 py-3">Before</th>
+                        <th className="px-3 py-3">After</th>
+                        <th className="px-3 py-3">Reason</th>
+                        <th className="px-3 py-3">By</th>
+                        <th className="px-3 py-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.length === 0 ? (
+                        <tr>
+                          <td className="px-3 py-4 text-ink/60" colSpan={7}>No stock movement found.</td>
+                        </tr>
+                      ) : null}
+                      {items.map((item) => (
+                        <tr className="border-t border-black/10 hover:bg-cream/60" key={getId(item)}>
+                          <td className="px-3 py-3">
+                            <p className="font-bold">{text(item.itemName) || getId(item)}</p>
+                            <p className="text-xs text-ink/55">{stockTypeLabel(item.itemType)}</p>
+                          </td>
+                          <td className="px-3 py-3 font-bold">{text(item.changeType)}</td>
+                          <td className="px-3 py-3">{text(item.previousQuantity)}</td>
+                          <td className="px-3 py-3">{text(item.newQuantity)}</td>
+                          <td className="px-3 py-3">{text(item.reason) || "-"}</td>
+                          <td className="px-3 py-3">{actorName(item.changedBy)}</td>
+                          <td className="px-3 py-3">{item.createdAt ? new Date(text(item.createdAt)).toLocaleString() : ""}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {active !== "orders" && active !== "contacts" && active !== "reports" && active !== "settings" && active !== "stock" ? (
             <div className="grid max-h-[560px] gap-2 overflow-auto">
               {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
               {items.map((item) => (
@@ -694,20 +872,73 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
           {active === "stock" ? (
             <form className="grid gap-3" onSubmit={submitStock}>
-              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.itemType} onChange={(event) => setStockForm({ ...stockForm, itemType: event.target.value })}>
-                <option value="foodItem">Food item</option>
-                <option value="variation">Variation</option>
-                <option value="addOn">Add-on</option>
-              </select>
-              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" placeholder="Selected item ID" value={stockForm.itemId} onChange={(event) => setStockForm({ ...stockForm, itemId: event.target.value })} />
-              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.adjustmentType} onChange={(event) => setStockForm({ ...stockForm, adjustmentType: event.target.value })}>
-                <option value="increase">Increase</option>
-                <option value="decrease">Decrease</option>
-                <option value="set">Set exact quantity</option>
-              </select>
-              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" min={0} type="number" value={stockForm.quantity} onChange={(event) => setStockForm({ ...stockForm, quantity: Number(event.target.value) })} />
-              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" placeholder="Reason" value={stockForm.reason} onChange={(event) => setStockForm({ ...stockForm, reason: event.target.value })} />
-              <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Adjust stock</button>
+              <div>
+                <h4 className="text-lg font-black">Adjust stock</h4>
+                <p className="mt-1 text-sm text-ink/60">Use this for received stock, wastage, corrections, and order-related fixes.</p>
+              </div>
+              <label className="text-sm font-bold">
+                Item type
+                <select
+                  className="mt-2 w-full rounded-md border border-black/15 px-4 py-3 text-sm"
+                  value={stockForm.itemType}
+                  onChange={(event) => {
+                    const nextType = event.target.value as StockInventoryItem["type"];
+                    const first = stockInventory.find((item) => item.type === nextType);
+                    setStockForm({ ...stockForm, itemType: nextType, itemId: first?.id || "" });
+                  }}
+                >
+                  <option value="foodItem">Food item</option>
+                  <option value="variation">Variation</option>
+                  <option value="addOn">Add-on</option>
+                </select>
+              </label>
+              <label className="text-sm font-bold">
+                Stock item
+                <select
+                  className="mt-2 w-full rounded-md border border-black/15 px-4 py-3 text-sm"
+                  value={stockForm.itemId}
+                  onChange={(event) => setStockForm({ ...stockForm, itemId: event.target.value })}
+                  required
+                >
+                  <option value="">Select item</option>
+                  {stockOptions.map((item) => (
+                    <option key={`${item.type}-${item.id}`} value={item.id}>
+                      {item.parent ? `${item.parent} - ${item.label}` : item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedStockItem ? (
+                <div className="rounded-md bg-cream p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <p>
+                      <span className="font-bold">{selectedStockItem.label}</span>
+                      {selectedStockItem.parent ? <span className="text-ink/55"> / {selectedStockItem.parent}</span> : null}
+                    </p>
+                    <span className={`rounded-md px-2 py-1 text-xs font-bold ${stockStatus(selectedStockItem).className}`}>{stockStatus(selectedStockItem).label}</span>
+                  </div>
+                  <p className="mt-2 text-ink/60">Current: {selectedStockItem.quantity} | Low alert: {selectedStockItem.threshold}</p>
+                </div>
+              ) : null}
+              <label className="text-sm font-bold">
+                Adjustment
+                <select className="mt-2 w-full rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.adjustmentType} onChange={(event) => setStockForm({ ...stockForm, adjustmentType: event.target.value })}>
+                  <option value="increase">Increase received stock</option>
+                  <option value="decrease">Decrease damaged / used stock</option>
+                  <option value="set">Set exact quantity</option>
+                </select>
+              </label>
+              <label className="text-sm font-bold">
+                Quantity
+                <input className="mt-2 w-full rounded-md border border-black/15 px-4 py-3 text-sm" min={0} type="number" value={stockForm.quantity} onChange={(event) => setStockForm({ ...stockForm, quantity: Number(event.target.value) })} />
+              </label>
+              <label className="text-sm font-bold">
+                Reason
+                <input className="mt-2 w-full rounded-md border border-black/15 px-4 py-3 text-sm" placeholder="Reason" value={stockForm.reason} onChange={(event) => setStockForm({ ...stockForm, reason: event.target.value })} />
+              </label>
+              <button className="rounded-md bg-tomato px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/30" disabled={!stockForm.itemId}>
+                Adjust stock
+              </button>
             </form>
           ) : null}
 
