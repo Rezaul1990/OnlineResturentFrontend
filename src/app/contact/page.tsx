@@ -13,7 +13,8 @@ export default function ContactPage() {
     event.preventDefault();
     setMessage("");
     setError("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch(`${apiBaseUrl}/public/contact`, {
         method: "POST",
@@ -23,7 +24,7 @@ export default function ContactPage() {
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload.message || "Submit failed");
       setMessage("Message sent successfully.");
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (contactError) {
       setError(contactError instanceof Error ? contactError.message : "Submit failed");
     }
