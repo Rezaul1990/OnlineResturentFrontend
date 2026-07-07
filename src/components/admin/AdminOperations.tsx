@@ -478,7 +478,56 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
           ) : null}
 
-          {active !== "reports" && active !== "settings" ? (
+          {active === "orders" ? (
+            <div className="overflow-x-auto rounded-md border border-black/10">
+              <table className="w-full min-w-[920px] border-collapse text-left text-sm">
+                <thead className="bg-cream text-xs uppercase text-ink/60">
+                  <tr>
+                    <th className="px-3 py-3">Order ID</th>
+                    <th className="px-3 py-3">Customer</th>
+                    <th className="px-3 py-3">Phone</th>
+                    <th className="px-3 py-3">Type</th>
+                    <th className="px-3 py-3">Payment</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Total</th>
+                    <th className="px-3 py-3">Date</th>
+                    <th className="px-3 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-4 text-ink/60" colSpan={9}>No orders found.</td>
+                    </tr>
+                  ) : null}
+                  {items.map((item) => (
+                    <tr className="border-t border-black/10 hover:bg-cream/60" key={getId(item)}>
+                      <td className="px-3 py-3 font-black">{text(item.orderId)}</td>
+                      <td className="px-3 py-3">{text(item.customerName)}</td>
+                      <td className="px-3 py-3">{text(item.phone)}</td>
+                      <td className="px-3 py-3">{text(item.orderType)}</td>
+                      <td className="px-3 py-3">
+                        <p>{text(item.paymentMethod)}</p>
+                        <p className="text-xs text-ink/55">{text(item.paymentStatus)}</p>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className="rounded-md bg-herb/10 px-2 py-1 text-xs font-bold text-herb">{text(item.orderStatus)}</span>
+                      </td>
+                      <td className="px-3 py-3 font-bold">BDT {text(item.grandTotal)}</td>
+                      <td className="px-3 py-3">{item.createdAt ? new Date(text(item.createdAt)).toLocaleDateString() : ""}</td>
+                      <td className="px-3 py-3 text-right">
+                        <button className="rounded-md bg-tomato px-3 py-2 text-xs font-bold text-white" onClick={() => chooseItem(item)} type="button">
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {active !== "orders" && active !== "reports" && active !== "settings" ? (
             <div className="grid max-h-[560px] gap-2 overflow-auto">
               {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
               {items.map((item) => (
@@ -629,9 +678,9 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         ) : null}
       </div>
       {active === "orders" && drawerItem ? (
-        <div className="fixed inset-0 z-50 bg-black/35" role="dialog" aria-modal="true">
-          <button className="absolute inset-0 h-full w-full cursor-default" aria-label="Close order drawer" onClick={() => setDrawerItem(null)} type="button" />
-          <aside className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true">
+          <button className="absolute inset-0 h-full w-full cursor-default" aria-label="Close order modal" onClick={() => setDrawerItem(null)} type="button" />
+          <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col rounded-lg bg-white shadow-2xl">
             <header className="border-b border-black/10 px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -686,7 +735,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
 
             <footer className="border-t border-black/10 bg-cream px-5 py-4">
-              <div className="grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
                   {orderStatuses.map((item) => <option key={item}>{item}</option>)}
                 </select>
@@ -698,7 +747,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                 <button className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-bold" onClick={submitPayment}>Update payment</button>
               </div>
             </footer>
-          </aside>
+          </div>
         </div>
       ) : null}
     </section>
