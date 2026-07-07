@@ -232,6 +232,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
   const [form, setForm] = useState<Record<string, string | number | boolean>>(defaultValues[active] || {});
   const [roles, setRoles] = useState<Array<Record<string, unknown>>>([]);
   const [selectedId, setSelectedId] = useState("");
+  const [drawerItem, setDrawerItem] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState("Confirmed");
   const [paymentStatus, setPaymentStatus] = useState("Paid");
   const [cancelReason, setCancelReason] = useState("Customer cancelled");
@@ -281,6 +282,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     const timer = window.setTimeout(() => {
       setItems([]);
       setSelectedId("");
+      setDrawerItem(null);
       setForm(defaultValues[active] || {});
       setMessage("");
       setError("");
@@ -343,6 +345,10 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
   const chooseItem = (item: Record<string, unknown>) => {
     setSelectedId(getId(item));
+    if (active === "orders") {
+      setDrawerItem(item);
+      return;
+    }
     if (activeResource) setForm(flattenItem(activeResource.key, item) as Record<string, string | number | boolean>);
   };
 
@@ -353,6 +359,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     try {
       await updateOrderStatus(token, selectedId, { status, cancelReason: status === "Cancelled" ? cancelReason : undefined });
       setMessage("Order status updated.");
+      setDrawerItem(null);
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Status update failed");
@@ -366,6 +373,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     try {
       await updateOrderPayment(token, selectedId, { paymentStatus });
       setMessage("Payment status updated.");
+      setDrawerItem(null);
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Payment update failed");
@@ -416,7 +424,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "settings" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("settings")}>Settings</button>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_480px]">
+      <div className={`mt-5 grid gap-5 ${active === "orders" ? "" : "xl:grid-cols-[1fr_480px]"}`}>
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xl font-black">{activeResource?.label || (active === "stock" ? "Stock logs" : active === "reports" ? "Reports" : active === "settings" ? "Settings" : "Orders")}</h3>
@@ -453,6 +461,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
           ) : null}
         </div>
 
+        {active !== "orders" ? (
         <div>
           {activeResource ? (
             <form className="grid gap-3" onSubmit={submitCreate}>
@@ -506,20 +515,6 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </form>
           ) : null}
 
-          {active === "orders" ? (
-            <div className="grid gap-3">
-              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
-                {orderStatuses.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              {status === "Cancelled" ? <input className="rounded-md border border-black/15 px-4 py-3 text-sm" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /> : null}
-              <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white disabled:bg-ink/30" disabled={!selectedId} onClick={submitOrderStatus}>Update status</button>
-              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
-                {paymentStatuses.map((item) => <option key={item}>{item}</option>)}
-              </select>
-              <button className="rounded-md border border-black/15 px-4 py-2 text-sm font-bold disabled:bg-ink/10" disabled={!selectedId} onClick={submitPayment}>Update payment</button>
-            </div>
-          ) : null}
-
           {active === "stock" ? (
             <form className="grid gap-3" onSubmit={submitStock}>
               <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.itemType} onChange={(event) => setStockForm({ ...stockForm, itemType: event.target.value })}>
@@ -560,7 +555,81 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
           {message ? <p className="mt-3 rounded-md bg-herb/10 p-3 text-sm font-bold text-herb">{message}</p> : null}
           {error ? <p className="mt-3 rounded-md bg-tomato/10 p-3 text-sm font-bold text-tomato">{error}</p> : null}
         </div>
+        ) : null}
       </div>
+      {active === "orders" && drawerItem ? (
+        <div className="fixed inset-0 z-50 bg-black/35" role="dialog" aria-modal="true">
+          <button className="absolute inset-0 h-full w-full cursor-default" aria-label="Close order drawer" onClick={() => setDrawerItem(null)} type="button" />
+          <aside className="absolute right-0 top-0 flex h-full w-full max-w-xl flex-col bg-white shadow-2xl">
+            <header className="border-b border-black/10 px-5 py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold uppercase text-herb">Order details</p>
+                  <h3 className="mt-1 text-2xl font-black">{text(drawerItem.orderId)}</h3>
+                  <p className="mt-1 text-sm text-ink/60">{text(drawerItem.customerName)} - {text(drawerItem.phone)}</p>
+                </div>
+                <button className="rounded-md border border-black/15 px-3 py-2 text-sm font-bold" onClick={() => setDrawerItem(null)} type="button">
+                  Close
+                </button>
+              </div>
+            </header>
+
+            <div className="flex-1 overflow-auto px-5 py-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  ["Status", drawerItem.orderStatus],
+                  ["Payment", drawerItem.paymentStatus],
+                  ["Type", drawerItem.orderType],
+                  ["Method", drawerItem.paymentMethod],
+                  ["Area", drawerItem.area],
+                  ["Total", `BDT ${text(drawerItem.grandTotal)}`]
+                ].map(([label, value]) => (
+                  <div className="rounded-md bg-cream p-3" key={String(label)}>
+                    <p className="text-xs font-bold uppercase text-ink/55">{text(label)}</p>
+                    <p className="mt-1 font-black">{text(value)}</p>
+                  </div>
+                ))}
+              </div>
+
+              <section className="mt-4 rounded-md border border-black/10 p-4">
+                <h4 className="font-black">Items</h4>
+                <div className="mt-3 grid gap-2 text-sm">
+                  {Array.isArray(drawerItem.items) ? drawerItem.items.map((item, index) => {
+                    const orderItem = item as Record<string, unknown>;
+                    return (
+                      <div className="flex justify-between gap-3 border-b border-black/10 pb-2 last:border-b-0 last:pb-0" key={`${text(orderItem.name)}-${index}`}>
+                        <span>{text(orderItem.name)} x {text(orderItem.quantity)}</span>
+                        <strong>BDT {text(orderItem.lineTotal)}</strong>
+                      </div>
+                    );
+                  }) : <p className="text-ink/60">No item details found.</p>}
+                </div>
+              </section>
+
+              {drawerItem.note ? (
+                <section className="mt-4 rounded-md border border-black/10 p-4">
+                  <h4 className="font-black">Customer note</h4>
+                  <p className="mt-2 text-sm text-ink/70">{text(drawerItem.note)}</p>
+                </section>
+              ) : null}
+            </div>
+
+            <footer className="border-t border-black/10 bg-cream px-5 py-4">
+              <div className="grid gap-3">
+                <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
+                  {orderStatuses.map((item) => <option key={item}>{item}</option>)}
+                </select>
+                {status === "Cancelled" ? <input className="rounded-md border border-black/15 px-4 py-3 text-sm" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} /> : null}
+                <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white" onClick={submitOrderStatus}>Update status</button>
+                <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
+                  {paymentStatuses.map((item) => <option key={item}>{item}</option>)}
+                </select>
+                <button className="rounded-md border border-black/15 bg-white px-4 py-2 text-sm font-bold" onClick={submitPayment}>Update payment</button>
+              </div>
+            </footer>
+          </aside>
+        </div>
+      ) : null}
     </section>
   );
 }
