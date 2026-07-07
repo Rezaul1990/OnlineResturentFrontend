@@ -9,14 +9,21 @@ type ApiEnvelope<T> = {
 };
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...init?.headers
-    },
-    cache: "no-store"
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers
+      },
+      cache: "no-store"
+    });
+  } catch {
+    throw new Error("Backend API is not running. Start the backend server and try again.");
+  }
+
   const payload = (await response.json()) as ApiEnvelope<T>;
 
   if (!response.ok || !payload.success) {

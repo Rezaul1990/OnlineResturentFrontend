@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { loginAdmin } from "@/lib/adminApi";
 
 const TOKEN_KEY = "online_resturent_admin_token";
+const DEFAULT_DEV_PASSWORD = process.env.NODE_ENV === "development" ? "ChangeMe123!" : "";
 
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("owner@example.com");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState(DEFAULT_DEV_PASSWORD);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
