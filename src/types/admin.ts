@@ -26,6 +26,9 @@ export type AdminDashboardResponse = {
   completedOrders?: number;
   cancelledOrders?: number;
   totalSales?: number;
+  refundedSales?: number;
+  pendingPaymentOrders?: number;
+  paidOrders?: number;
   bestSelling?: Array<{ _id: string; quantity: number; sales: number }>;
   newOrders?: Array<{ orderId: string; customerName: string; phone: string; grandTotal: number }>;
 };

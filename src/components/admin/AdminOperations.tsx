@@ -199,6 +199,10 @@ const localized = (value: unknown, key: "en" | "bn") => (value && typeof value =
 const bool = (value: unknown) => Boolean(value);
 const number = (value: unknown) => Number(value || 0);
 const selectedPermissions = (value: unknown) => text(value).split(",").map((item) => item.trim()).filter(Boolean);
+const actorName = (value: unknown) => {
+  if (value && typeof value === "object" && "name" in value) return text((value as Record<string, unknown>).name);
+  return value ? text(value) : "System";
+};
 
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
@@ -480,7 +484,10 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                 ["Pending orders", dashboard.pendingOrders ?? 0],
                 ["Completed orders", dashboard.completedOrders ?? 0],
                 ["Cancelled orders", dashboard.cancelledOrders ?? 0],
-                ["Total sales", `BDT ${dashboard.totalSales ?? 0}`]
+                ["Paid orders", dashboard.paidOrders ?? 0],
+                ["Pending payment", dashboard.pendingPaymentOrders ?? 0],
+                ["Paid sales", `BDT ${dashboard.totalSales ?? 0}`],
+                ["Refunded amount", `BDT ${dashboard.refundedSales ?? 0}`]
               ].map(([label, value]) => (
                 <div className="rounded-md bg-cream p-4" key={label}>
                   <p className="text-sm font-bold text-ink/60">{label}</p>
@@ -521,6 +528,9 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                       <td className="px-3 py-3">
                         <p>{text(item.paymentMethod)}</p>
                         <p className="text-xs text-ink/55">{text(item.paymentStatus)}</p>
+                        {Array.isArray(item.paymentHistory) && item.paymentHistory.length > 0 ? (
+                          <p className="text-xs text-ink/55">by {actorName((item.paymentHistory[item.paymentHistory.length - 1] as Record<string, unknown>).changedBy)}</p>
+                        ) : null}
                       </td>
                       <td className="px-3 py-3">
                         <span className="rounded-md bg-herb/10 px-2 py-1 text-xs font-bold text-herb">{text(item.orderStatus)}</span>
@@ -785,6 +795,38 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                   <p className="mt-2 text-sm text-ink/70">{text(drawerItem.note)}</p>
                 </section>
               ) : null}
+              <section className="mt-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-md border border-black/10 p-4">
+                  <h4 className="font-black">Status history</h4>
+                  <div className="mt-3 grid gap-2 text-sm">
+                    {Array.isArray(drawerItem.statusHistory) && drawerItem.statusHistory.length > 0 ? drawerItem.statusHistory.map((entry, index) => {
+                      const history = entry as Record<string, unknown>;
+                      return (
+                        <div className="rounded-md bg-cream p-3" key={`status-${index}`}>
+                          <p className="font-bold">{text(history.previousStatus) || "New"} to {text(history.newStatus)}</p>
+                          <p className="text-xs text-ink/60">{history.changedAt ? new Date(text(history.changedAt)).toLocaleString() : ""}</p>
+                          <p className="text-xs text-ink/60">By {actorName(history.changedBy)}</p>
+                        </div>
+                      );
+                    }) : <p className="text-ink/60">No status history found.</p>}
+                  </div>
+                </div>
+                <div className="rounded-md border border-black/10 p-4">
+                  <h4 className="font-black">Payment history</h4>
+                  <div className="mt-3 grid gap-2 text-sm">
+                    {Array.isArray(drawerItem.paymentHistory) && drawerItem.paymentHistory.length > 0 ? drawerItem.paymentHistory.map((entry, index) => {
+                      const history = entry as Record<string, unknown>;
+                      return (
+                        <div className="rounded-md bg-cream p-3" key={`payment-${index}`}>
+                          <p className="font-bold">{text(history.previousStatus) || "New"} to {text(history.newStatus)}</p>
+                          <p className="text-xs text-ink/60">{history.changedAt ? new Date(text(history.changedAt)).toLocaleString() : ""}</p>
+                          <p className="text-xs text-ink/60">By {actorName(history.changedBy)}</p>
+                        </div>
+                      );
+                    }) : <p className="text-ink/60">No payment history found.</p>}
+                  </div>
+                </div>
+              </section>
             </div>
 
             <footer className="border-t border-black/10 bg-cream px-5 py-4">
