@@ -15,89 +15,208 @@ import {
 } from "@/lib/adminApi";
 import type { AdminDashboardResponse, AdminSettings } from "@/types/admin";
 
+type Field = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "checkbox" | "select" | "textarea";
+  options?: string[];
+};
+
 type ResourceConfig = {
   key: string;
   label: string;
-  template: Record<string, unknown>;
+  fields: Field[];
 };
 
 const resources: ResourceConfig[] = [
   {
     key: "categories",
     label: "Categories",
-    template: { name: { en: "New Category", bn: "" }, slug: "new-category", description: { en: "", bn: "" }, isActive: true, sortOrder: 1 }
+    fields: [
+      { name: "nameEn", label: "Name English" },
+      { name: "nameBn", label: "Name Bangla" },
+      { name: "slug", label: "Slug" },
+      { name: "descriptionEn", label: "Description English", type: "textarea" },
+      { name: "descriptionBn", label: "Description Bangla", type: "textarea" },
+      { name: "imageUrl", label: "Image URL" },
+      { name: "sortOrder", label: "Sort order", type: "number" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   },
   {
     key: "foods",
     label: "Foods",
-    template: {
-      name: "New Food",
-      nameBn: "",
-      slug: "new-food",
-      description: "Short description",
-      category: "Signature Meals",
-      price: 100,
-      stockQuantity: 10,
-      lowStockThreshold: 5,
-      isAvailable: true,
-      isFeatured: false,
-      isPopular: false
-    }
+    fields: [
+      { name: "name", label: "Name English" },
+      { name: "nameBn", label: "Name Bangla" },
+      { name: "slug", label: "Slug" },
+      { name: "category", label: "Category name" },
+      { name: "description", label: "Short description English", type: "textarea" },
+      { name: "descriptionBn", label: "Short description Bangla", type: "textarea" },
+      { name: "price", label: "Base price", type: "number" },
+      { name: "stockQuantity", label: "Stock quantity", type: "number" },
+      { name: "lowStockThreshold", label: "Low stock threshold", type: "number" },
+      { name: "imageUrl", label: "Image URL" },
+      { name: "isAvailable", label: "Available", type: "checkbox" },
+      { name: "isFeatured", label: "Featured", type: "checkbox" },
+      { name: "isPopular", label: "Popular", type: "checkbox" }
+    ]
   },
   {
     key: "addons",
     label: "Add-ons",
-    template: { name: { en: "Extra Sauce", bn: "" }, price: 30, stockQuantity: 50, lowStockThreshold: 5, isAvailable: true }
+    fields: [
+      { name: "nameEn", label: "Name English" },
+      { name: "nameBn", label: "Name Bangla" },
+      { name: "price", label: "Price", type: "number" },
+      { name: "stockQuantity", label: "Stock quantity", type: "number" },
+      { name: "lowStockThreshold", label: "Low stock threshold", type: "number" },
+      { name: "isAvailable", label: "Available", type: "checkbox" }
+    ]
   },
   {
     key: "coupons",
     label: "Coupons",
-    template: { code: "SAVE10", title: "Save 10", discountType: "percentage", discountValue: 10, appliesTo: "all", isActive: true }
+    fields: [
+      { name: "code", label: "Coupon code" },
+      { name: "title", label: "Title" },
+      { name: "discountType", label: "Discount type", type: "select", options: ["percentage", "fixed"] },
+      { name: "discountValue", label: "Discount value", type: "number" },
+      { name: "appliesTo", label: "Applies to", type: "select", options: ["all", "categories", "products"] },
+      { name: "minimumOrderAmount", label: "Minimum order amount", type: "number" },
+      { name: "maximumDiscountAmount", label: "Maximum discount amount", type: "number" },
+      { name: "usageLimit", label: "Usage limit", type: "number" },
+      { name: "perPhoneUsageLimit", label: "Per phone usage limit", type: "number" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   },
   {
     key: "delivery-areas",
     label: "Delivery",
-    template: { name: "Mirpur", zone: "Inside Dhaka", charge: 60, isActive: true }
+    fields: [
+      { name: "name", label: "Area / Thana name" },
+      { name: "zone", label: "Zone", type: "select", options: ["Inside Dhaka", "Outside Dhaka"] },
+      { name: "charge", label: "Delivery charge", type: "number" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   },
   {
     key: "cms",
     label: "CMS",
-    template: { type: "section", slug: "home-section", title: { en: "Section", bn: "" }, content: { en: "", bn: "" }, isActive: true, sortOrder: 1 }
+    fields: [
+      { name: "type", label: "Content type", type: "select", options: ["hero", "section", "about", "banner", "gallery", "faq", "testimonial", "policy", "seo", "footer", "contact"] },
+      { name: "slug", label: "Slug" },
+      { name: "titleEn", label: "Title English" },
+      { name: "titleBn", label: "Title Bangla" },
+      { name: "subtitleEn", label: "Subtitle English" },
+      { name: "subtitleBn", label: "Subtitle Bangla" },
+      { name: "contentEn", label: "Content English", type: "textarea" },
+      { name: "contentBn", label: "Content Bangla", type: "textarea" },
+      { name: "imageUrl", label: "Image URL" },
+      { name: "sortOrder", label: "Sort order", type: "number" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   },
   {
     key: "reviews",
     label: "Reviews",
-    template: { customerName: "Customer", rating: 5, message: "Great food", type: "testimonial", status: "Approved", isFeatured: true }
+    fields: [
+      { name: "customerName", label: "Customer name" },
+      { name: "phone", label: "Phone" },
+      { name: "rating", label: "Rating", type: "number" },
+      { name: "message", label: "Message", type: "textarea" },
+      { name: "type", label: "Type", type: "select", options: ["review", "testimonial"] },
+      { name: "status", label: "Status", type: "select", options: ["Pending", "Approved", "Rejected"] },
+      { name: "isFeatured", label: "Featured testimonial", type: "checkbox" }
+    ]
   },
   {
     key: "contacts",
     label: "Messages",
-    template: { name: "Customer", phoneOrEmail: "01700000000", subject: "Question", message: "Message", isRead: false }
+    fields: [
+      { name: "name", label: "Name" },
+      { name: "phoneOrEmail", label: "Phone or email" },
+      { name: "subject", label: "Subject" },
+      { name: "message", label: "Message", type: "textarea" },
+      { name: "isRead", label: "Marked read", type: "checkbox" }
+    ]
   },
   {
     key: "roles",
     label: "Roles",
-    template: { name: "Manager", description: "Restaurant manager", permissions: ["dashboard.view", "order.view"], isActive: true }
+    fields: [
+      { name: "name", label: "Role name" },
+      { name: "description", label: "Description", type: "textarea" },
+      { name: "permissions", label: "Permissions, comma separated", type: "textarea" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   },
   {
     key: "users",
     label: "Users",
-    template: { name: "Staff User", email: "staff@example.com", phone: "01700000000", password: "ChangeMe123!", role: "PASTE_ROLE_ID", isActive: true }
+    fields: [
+      { name: "name", label: "Staff name" },
+      { name: "email", label: "Email" },
+      { name: "phone", label: "Phone" },
+      { name: "password", label: "Password" },
+      { name: "role", label: "Role", type: "select" },
+      { name: "isActive", label: "Active", type: "checkbox" }
+    ]
   }
 ];
 
+const defaultValues: Record<string, Record<string, string | number | boolean>> = {
+  categories: { nameEn: "", nameBn: "", slug: "", descriptionEn: "", descriptionBn: "", imageUrl: "", sortOrder: 1, isActive: true },
+  foods: { name: "", nameBn: "", slug: "", category: "", description: "", descriptionBn: "", price: 0, stockQuantity: 0, lowStockThreshold: 5, imageUrl: "", isAvailable: true, isFeatured: false, isPopular: false },
+  addons: { nameEn: "", nameBn: "", price: 0, stockQuantity: 0, lowStockThreshold: 5, isAvailable: true },
+  coupons: { code: "", title: "", discountType: "percentage", discountValue: 0, appliesTo: "all", minimumOrderAmount: 0, maximumDiscountAmount: 0, usageLimit: 0, perPhoneUsageLimit: 0, isActive: true },
+  "delivery-areas": { name: "", zone: "Inside Dhaka", charge: 60, isActive: true },
+  cms: { type: "section", slug: "", titleEn: "", titleBn: "", subtitleEn: "", subtitleBn: "", contentEn: "", contentBn: "", imageUrl: "", sortOrder: 1, isActive: true },
+  reviews: { customerName: "", phone: "", rating: 5, message: "", type: "review", status: "Pending", isFeatured: false },
+  contacts: { name: "", phoneOrEmail: "", subject: "", message: "", isRead: false },
+  roles: { name: "", description: "", permissions: "dashboard.view,order.view", isActive: true },
+  users: { name: "", email: "", phone: "", password: "", role: "", isActive: true }
+};
+
 const orderStatuses = ["Pending", "Called", "Confirmed", "Preparing", "Ready for Pickup", "Out for Delivery", "Completed", "Cancelled"];
 const paymentStatuses = ["Unpaid", "Pending Verification", "Paid", "Partially Paid", "Failed / Rejected", "Refunded"];
-
 const getId = (item: Record<string, unknown>) => String(item._id || item.id || "");
+const text = (value: unknown) => (value == null ? "" : String(value));
+const localized = (value: unknown, key: "en" | "bn") => (value && typeof value === "object" && key in value ? text((value as Record<string, unknown>)[key]) : "");
+const bool = (value: unknown) => Boolean(value);
+const number = (value: unknown) => Number(value || 0);
+
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
   if (typeof name === "string") return name;
-  if (name && typeof name === "object" && "en" in name) return String((name as { en?: unknown }).en || "Untitled");
-  return String(item.orderId || item.code || item.email || item.slug || item.subject || getId(item));
+  if (name && typeof name === "object" && "en" in name) return text((name as { en?: unknown }).en || "Untitled");
+  return text(item.orderId || item.code || item.email || item.slug || item.subject || getId(item));
 };
 
-const parseJson = (value: string) => JSON.parse(value) as Record<string, unknown>;
+const flattenItem = (resource: string, item: Record<string, unknown>) => {
+  if (resource === "categories") return { nameEn: localized(item.name, "en"), nameBn: localized(item.name, "bn"), slug: text(item.slug), descriptionEn: localized(item.description, "en"), descriptionBn: localized(item.description, "bn"), imageUrl: text(item.imageUrl), sortOrder: number(item.sortOrder), isActive: bool(item.isActive) };
+  if (resource === "addons") return { nameEn: localized(item.name, "en"), nameBn: localized(item.name, "bn"), price: number(item.price), stockQuantity: number(item.stockQuantity), lowStockThreshold: number(item.lowStockThreshold), isAvailable: bool(item.isAvailable) };
+  if (resource === "cms") return { type: text(item.type), slug: text(item.slug), titleEn: localized(item.title, "en"), titleBn: localized(item.title, "bn"), subtitleEn: localized(item.subtitle, "en"), subtitleBn: localized(item.subtitle, "bn"), contentEn: localized(item.content, "en"), contentBn: localized(item.content, "bn"), imageUrl: text(item.imageUrl), sortOrder: number(item.sortOrder), isActive: bool(item.isActive) };
+  if (resource === "roles") return { name: text(item.name), description: text(item.description), permissions: Array.isArray(item.permissions) ? item.permissions.join(",") : "", isActive: bool(item.isActive) };
+  if (resource === "users") {
+    const role = item.role && typeof item.role === "object" ? getId(item.role as Record<string, unknown>) : text(item.role);
+    return { name: text(item.name), email: text(item.email), phone: text(item.phone), password: "", role, isActive: bool(item.isActive) };
+  }
+  return { ...defaultValues[resource], ...item };
+};
+
+const buildPayload = (resource: string, form: Record<string, string | number | boolean>) => {
+  if (resource === "categories") return { name: { en: form.nameEn, bn: form.nameBn }, slug: form.slug, description: { en: form.descriptionEn, bn: form.descriptionBn }, imageUrl: form.imageUrl, sortOrder: Number(form.sortOrder), isActive: Boolean(form.isActive) };
+  if (resource === "addons") return { name: { en: form.nameEn, bn: form.nameBn }, price: Number(form.price), stockQuantity: Number(form.stockQuantity), lowStockThreshold: Number(form.lowStockThreshold), isAvailable: Boolean(form.isAvailable) };
+  if (resource === "cms") return { type: form.type, slug: form.slug, title: { en: form.titleEn, bn: form.titleBn }, subtitle: { en: form.subtitleEn, bn: form.subtitleBn }, content: { en: form.contentEn, bn: form.contentBn }, imageUrl: form.imageUrl, sortOrder: Number(form.sortOrder), isActive: Boolean(form.isActive) };
+  if (resource === "roles") return { name: form.name, description: form.description, permissions: text(form.permissions).split(",").map((item) => item.trim()).filter(Boolean), isActive: Boolean(form.isActive) };
+  if (resource === "users") {
+    const payload: Record<string, unknown> = { name: form.name, email: form.email, phone: form.phone, role: form.role, isActive: Boolean(form.isActive) };
+    if (form.password) payload.password = form.password;
+    return payload;
+  }
+  return Object.fromEntries(Object.entries(form).map(([key, value]) => [key, typeof value === "number" ? Number(value) : value]));
+};
 
 type AdminOperationsProps = {
   token: string;
@@ -110,13 +229,20 @@ type AdminOperationsProps = {
 export function AdminOperations({ token, activeKey, onActiveChange, dashboard, settings }: AdminOperationsProps) {
   const active = activeKey;
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
-  const [formValue, setFormValue] = useState("");
-  const [settingsValue, setSettingsValue] = useState(JSON.stringify(settings, null, 2));
+  const [form, setForm] = useState<Record<string, string | number | boolean>>(defaultValues[active] || {});
+  const [roles, setRoles] = useState<Array<Record<string, unknown>>>([]);
   const [selectedId, setSelectedId] = useState("");
   const [status, setStatus] = useState("Confirmed");
   const [paymentStatus, setPaymentStatus] = useState("Paid");
   const [cancelReason, setCancelReason] = useState("Customer cancelled");
-  const [stockForm, setStockForm] = useState('{"itemType":"foodItem","itemId":"PASTE_ID","adjustmentType":"increase","quantity":1,"reason":"Manual adjustment"}');
+  const [stockForm, setStockForm] = useState({ itemType: "foodItem", itemId: "", adjustmentType: "increase", quantity: 1, reason: "Manual adjustment" });
+  const [settingsForm, setSettingsForm] = useState({
+    restaurantNameEn: settings.restaurantName.en,
+    restaurantNameBn: settings.restaurantName.bn,
+    acceptingOrders: settings.acceptingOrders,
+    stockDecreaseTrigger: settings.stockDecreaseTrigger,
+    currency: settings.currency
+  });
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -139,6 +265,11 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         const data = await listAdminResource(token, activeResource.key);
         setItems(data.items);
       }
+
+      if (active === "users") {
+        const data = await listAdminResource(token, "roles");
+        setRoles(data.items);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load data");
     } finally {
@@ -148,33 +279,26 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      setItems([]);
+      setSelectedId("");
+      setForm(defaultValues[active] || {});
+      setMessage("");
+      setError("");
       void load();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [load]);
+  }, [active, load]);
 
   const changeActive = (key: string) => {
-    const resource = resources.find((item) => item.key === key);
     onActiveChange(key);
-    setItems([]);
-    setSelectedId("");
-    setFormValue(resource ? JSON.stringify(resource.template, null, 2) : "");
-    setMessage("");
-    setError("");
   };
 
-  const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    try {
-      const updated = await updateAdminSettings(token, parseJson(settingsValue));
-      setSettingsValue(JSON.stringify(updated, null, 2));
-      setMessage("Settings updated successfully.");
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Settings update failed");
-    }
+  const updateField = (field: Field, value: string | boolean) => {
+    setForm((current) => ({
+      ...current,
+      [field.name]: field.type === "number" ? Number(value || 0) : value
+    }));
   };
 
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -183,7 +307,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     setError("");
     setMessage("");
     try {
-      await createAdminResource(token, activeResource.key, parseJson(formValue));
+      await createAdminResource(token, activeResource.key, buildPayload(activeResource.key, form));
       setMessage("Created successfully.");
       await load();
     } catch (submitError) {
@@ -196,7 +320,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     setError("");
     setMessage("");
     try {
-      await updateAdminResource(token, activeResource.key, selectedId, parseJson(formValue));
+      await updateAdminResource(token, activeResource.key, selectedId, buildPayload(activeResource.key, form));
       setMessage("Updated successfully.");
       await load();
     } catch (submitError) {
@@ -219,7 +343,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
   const chooseItem = (item: Record<string, unknown>) => {
     setSelectedId(getId(item));
-    setFormValue(JSON.stringify(item, null, 2));
+    if (activeResource) setForm(flattenItem(activeResource.key, item) as Record<string, string | number | boolean>);
   };
 
   const submitOrderStatus = async () => {
@@ -253,11 +377,28 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     setError("");
     setMessage("");
     try {
-      await adjustStock(token, parseJson(stockForm));
+      await adjustStock(token, stockForm);
       setMessage("Stock adjusted.");
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Stock adjustment failed");
+    }
+  };
+
+  const submitSettings = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    try {
+      await updateAdminSettings(token, {
+        restaurantName: { en: settingsForm.restaurantNameEn, bn: settingsForm.restaurantNameBn },
+        acceptingOrders: settingsForm.acceptingOrders,
+        stockDecreaseTrigger: settingsForm.stockDecreaseTrigger,
+        currency: settingsForm.currency
+      });
+      setMessage("Settings updated successfully.");
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Settings update failed");
     }
   };
 
@@ -275,12 +416,13 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "settings" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("settings")}>Settings</button>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_420px]">
+      <div className="mt-5 grid gap-5 xl:grid-cols-[1fr_480px]">
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xl font-black">{activeResource?.label || (active === "stock" ? "Stock logs" : active === "reports" ? "Reports" : active === "settings" ? "Settings" : "Orders")}</h3>
             <button className="rounded-md border border-black/15 px-3 py-2 text-sm font-bold" onClick={load}>{loading ? "Loading..." : "Refresh"}</button>
           </div>
+
           {active === "reports" ? (
             <div className="grid gap-3 md:grid-cols-2">
               {[
@@ -295,39 +437,68 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                   <p className="mt-1 text-2xl font-black">{value}</p>
                 </div>
               ))}
-              <div className="rounded-md bg-cream p-4 md:col-span-2">
-                <p className="text-sm font-black">Best-selling foods</p>
-                <div className="mt-2 grid gap-2">
-                  {(dashboard.bestSelling || []).length === 0 ? <p className="text-sm text-ink/60">No sales data yet.</p> : null}
-                  {(dashboard.bestSelling || []).map((food) => (
-                    <div className="flex justify-between text-sm" key={food._id}>
-                      <span>{food._id}</span>
-                      <strong>{food.quantity} sold / BDT {food.sales}</strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           ) : null}
+
           {active !== "reports" && active !== "settings" ? (
-          <div className="grid max-h-[560px] gap-2 overflow-auto">
-            {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
-            {items.map((item) => (
-              <button className={`rounded-md border p-3 text-left text-sm ${selectedId === getId(item) ? "border-tomato bg-tomato/5" : "border-black/10 bg-cream"}`} key={getId(item)} onClick={() => chooseItem(item)}>
-                <p className="font-bold">{getTitle(item)}</p>
-                <p className="mt-1 truncate text-xs text-ink/55">{getId(item)}</p>
-              </button>
-            ))}
-          </div>
+            <div className="grid max-h-[560px] gap-2 overflow-auto">
+              {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
+              {items.map((item) => (
+                <button className={`rounded-md border p-3 text-left text-sm ${selectedId === getId(item) ? "border-tomato bg-tomato/5" : "border-black/10 bg-cream"}`} key={getId(item)} onClick={() => chooseItem(item)}>
+                  <p className="font-bold">{getTitle(item)}</p>
+                  <p className="mt-1 truncate text-xs text-ink/55">{active === "orders" ? `${text(item.phone)} - BDT ${text(item.grandTotal)}` : getId(item)}</p>
+                </button>
+              ))}
+            </div>
           ) : null}
         </div>
 
         <div>
           {activeResource ? (
-            <form onSubmit={submitCreate}>
-              <label className="text-sm font-bold" htmlFor="resource-json">Resource JSON</label>
-              <textarea id="resource-json" className="mt-2 min-h-[320px] w-full rounded-md border border-black/15 px-3 py-3 font-mono text-xs" value={formValue} onChange={(event) => setFormValue(event.target.value)} />
-              <div className="mt-3 flex flex-wrap gap-2">
+            <form className="grid gap-3" onSubmit={submitCreate}>
+              {activeResource.fields.map((field) => {
+                const options = field.name === "role" ? roles.map((role) => ({ label: getTitle(role), value: getId(role) })) : field.options?.map((option) => ({ label: option, value: option }));
+
+                if (field.type === "checkbox") {
+                  return (
+                    <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-bold" key={field.name}>
+                      <input checked={Boolean(form[field.name])} onChange={(event) => updateField(field, event.target.checked)} type="checkbox" />
+                      {field.label}
+                    </label>
+                  );
+                }
+
+                if (field.type === "select") {
+                  return (
+                    <label className="text-sm font-bold" key={field.name}>
+                      {field.label}
+                      <select className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form[field.name])} onChange={(event) => updateField(field, event.target.value)}>
+                        <option value="">Select {field.label}</option>
+                        {(options || []).map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                }
+
+                if (field.type === "textarea") {
+                  return (
+                    <label className="text-sm font-bold" key={field.name}>
+                      {field.label}
+                      <textarea className="mt-2 min-h-20 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form[field.name])} onChange={(event) => updateField(field, event.target.value)} />
+                    </label>
+                  );
+                }
+
+                return (
+                  <label className="text-sm font-bold" key={field.name}>
+                    {field.label}
+                    <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" type={field.type || "text"} value={text(form[field.name])} onChange={(event) => updateField(field, event.target.value)} />
+                  </label>
+                );
+              })}
+              <div className="flex flex-wrap gap-2 pt-1">
                 <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white" type="submit">Create</button>
                 <button className="rounded-md border border-black/15 px-4 py-2 text-sm font-bold" disabled={!selectedId} onClick={submitUpdate} type="button">Update</button>
                 <button className="rounded-md border border-tomato/40 px-4 py-2 text-sm font-bold text-tomato" disabled={!selectedId} onClick={submitDelete} type="button">Delete</button>
@@ -346,24 +517,43 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                 {paymentStatuses.map((item) => <option key={item}>{item}</option>)}
               </select>
               <button className="rounded-md border border-black/15 px-4 py-2 text-sm font-bold disabled:bg-ink/10" disabled={!selectedId} onClick={submitPayment}>Update payment</button>
-              {selectedId ? <pre className="max-h-[320px] overflow-auto rounded-md bg-cream p-3 text-xs">{formValue}</pre> : null}
             </div>
           ) : null}
 
           {active === "stock" ? (
-            <form onSubmit={submitStock}>
-              <label className="text-sm font-bold" htmlFor="stock-json">Stock adjustment JSON</label>
-              <textarea id="stock-json" className="mt-2 min-h-40 w-full rounded-md border border-black/15 px-3 py-3 font-mono text-xs" value={stockForm} onChange={(event) => setStockForm(event.target.value)} />
-              <button className="mt-3 rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Adjust stock</button>
-              {selectedId ? <pre className="mt-3 max-h-[260px] overflow-auto rounded-md bg-cream p-3 text-xs">{formValue}</pre> : null}
+            <form className="grid gap-3" onSubmit={submitStock}>
+              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.itemType} onChange={(event) => setStockForm({ ...stockForm, itemType: event.target.value })}>
+                <option value="foodItem">Food item</option>
+                <option value="variation">Variation</option>
+                <option value="addOn">Add-on</option>
+              </select>
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" placeholder="Selected item ID" value={stockForm.itemId} onChange={(event) => setStockForm({ ...stockForm, itemId: event.target.value })} />
+              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={stockForm.adjustmentType} onChange={(event) => setStockForm({ ...stockForm, adjustmentType: event.target.value })}>
+                <option value="increase">Increase</option>
+                <option value="decrease">Decrease</option>
+                <option value="set">Set exact quantity</option>
+              </select>
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" min={0} type="number" value={stockForm.quantity} onChange={(event) => setStockForm({ ...stockForm, quantity: Number(event.target.value) })} />
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" placeholder="Reason" value={stockForm.reason} onChange={(event) => setStockForm({ ...stockForm, reason: event.target.value })} />
+              <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Adjust stock</button>
             </form>
           ) : null}
 
           {active === "settings" ? (
-            <form onSubmit={submitSettings}>
-              <label className="text-sm font-bold" htmlFor="settings-json">Settings JSON</label>
-              <textarea id="settings-json" className="mt-2 min-h-[420px] w-full rounded-md border border-black/15 px-3 py-3 font-mono text-xs" value={settingsValue} onChange={(event) => setSettingsValue(event.target.value)} />
-              <button className="mt-3 rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Update settings</button>
+            <form className="grid gap-3" onSubmit={submitSettings}>
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" value={settingsForm.restaurantNameEn} onChange={(event) => setSettingsForm({ ...settingsForm, restaurantNameEn: event.target.value })} placeholder="Restaurant name English" />
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" value={settingsForm.restaurantNameBn} onChange={(event) => setSettingsForm({ ...settingsForm, restaurantNameBn: event.target.value })} placeholder="Restaurant name Bangla" />
+              <input className="rounded-md border border-black/15 px-4 py-3 text-sm" value={settingsForm.currency} onChange={(event) => setSettingsForm({ ...settingsForm, currency: event.target.value })} placeholder="Currency" />
+              <select className="rounded-md border border-black/15 px-4 py-3 text-sm" value={settingsForm.stockDecreaseTrigger} onChange={(event) => setSettingsForm({ ...settingsForm, stockDecreaseTrigger: event.target.value as AdminSettings["stockDecreaseTrigger"] })}>
+                <option>Pending</option>
+                <option>Confirmed</option>
+                <option>Preparing</option>
+              </select>
+              <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-bold">
+                <input checked={settingsForm.acceptingOrders} onChange={(event) => setSettingsForm({ ...settingsForm, acceptingOrders: event.target.checked })} type="checkbox" />
+                Accepting orders
+              </label>
+              <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white">Update settings</button>
             </form>
           ) : null}
 
