@@ -373,6 +373,18 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
     }
   };
 
+  const markMessageRead = async (item: Record<string, unknown>) => {
+    setError("");
+    setMessage("");
+    try {
+      await updateAdminResource(token, "contacts", getId(item), { isRead: true });
+      setMessage("Message marked as read.");
+      await load();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Unable to mark message as read");
+    }
+  };
+
   const chooseItem = (item: Record<string, unknown>) => {
     setSelectedId(getId(item));
     if (active === "orders") {
@@ -454,7 +466,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         <button className={`rounded-md px-3 py-2 text-sm font-bold ${active === "settings" ? "bg-tomato text-white" : "bg-cream"}`} onClick={() => changeActive("settings")}>Settings</button>
       </div>
 
-      <div className={`mt-5 grid gap-5 ${active === "orders" ? "" : "xl:grid-cols-[1fr_480px]"}`}>
+      <div className={`mt-5 grid gap-5 ${active === "orders" || active === "contacts" ? "" : "xl:grid-cols-[1fr_480px]"}`}>
         <div>
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-xl font-black">{activeResource?.label || (active === "stock" ? "Stock logs" : active === "reports" ? "Reports" : active === "settings" ? "Settings" : "Orders")}</h3>
@@ -527,7 +539,42 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
           ) : null}
 
-          {active !== "orders" && active !== "reports" && active !== "settings" ? (
+          {active === "contacts" ? (
+            <div className="grid gap-3">
+              {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No messages found.</p> : null}
+              {items.map((item) => {
+                const isRead = Boolean(item.isRead);
+
+                return (
+                  <article className={`rounded-md border p-4 ${isRead ? "border-black/10 bg-cream/60 text-ink/55" : "border-tomato/30 bg-white"}`} key={getId(item)}>
+                    <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-black">{text(item.name)}</h4>
+                          <span className={`rounded-md px-2 py-1 text-xs font-bold ${isRead ? "bg-black/10 text-ink/55" : "bg-tomato/10 text-tomato"}`}>
+                            {isRead ? "Read" : "Unread"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-ink/60">{text(item.phoneOrEmail)}</p>
+                        <p className="mt-3 font-bold">{text(item.subject)}</p>
+                        <p className="mt-2 max-w-4xl text-sm leading-6">{text(item.message)}</p>
+                      </div>
+                      <button
+                        className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/25"
+                        disabled={isRead}
+                        onClick={() => markMessageRead(item)}
+                        type="button"
+                      >
+                        {isRead ? "Already read" : "Mark as read"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {active !== "orders" && active !== "contacts" && active !== "reports" && active !== "settings" ? (
             <div className="grid max-h-[560px] gap-2 overflow-auto">
               {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
               {items.map((item) => (
@@ -540,7 +587,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
           ) : null}
         </div>
 
-        {active !== "orders" ? (
+        {active !== "orders" && active !== "contacts" ? (
         <div>
           {activeResource ? (
             <form className="grid gap-3" onSubmit={submitCreate}>
@@ -677,6 +724,12 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         </div>
         ) : null}
       </div>
+      {active === "contacts" ? (
+        <div className="mt-4">
+          {message ? <p className="rounded-md bg-herb/10 p-3 text-sm font-bold text-herb">{message}</p> : null}
+          {error ? <p className="mt-3 rounded-md bg-tomato/10 p-3 text-sm font-bold text-tomato">{error}</p> : null}
+        </div>
+      ) : null}
       {active === "orders" && drawerItem ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true">
           <button className="absolute inset-0 h-full w-full cursor-default" aria-label="Close order modal" onClick={() => setDrawerItem(null)} type="button" />
