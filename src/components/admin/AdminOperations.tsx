@@ -18,7 +18,7 @@ import type { AdminDashboardResponse, AdminSettings } from "@/types/admin";
 type Field = {
   name: string;
   label: string;
-  type?: "text" | "number" | "checkbox" | "select" | "textarea";
+  type?: "text" | "number" | "checkbox" | "select" | "textarea" | "permissions";
   options?: string[];
 };
 
@@ -147,7 +147,7 @@ const resources: ResourceConfig[] = [
     fields: [
       { name: "name", label: "Role name" },
       { name: "description", label: "Description", type: "textarea" },
-      { name: "permissions", label: "Permissions, comma separated", type: "textarea" },
+      { name: "permissions", label: "Permissions", type: "permissions" },
       { name: "isActive", label: "Active", type: "checkbox" }
     ]
   },
@@ -180,11 +180,25 @@ const defaultValues: Record<string, Record<string, string | number | boolean>> =
 
 const orderStatuses = ["Pending", "Called", "Confirmed", "Preparing", "Ready for Pickup", "Out for Delivery", "Completed", "Cancelled"];
 const paymentStatuses = ["Unpaid", "Pending Verification", "Paid", "Partially Paid", "Failed / Rejected", "Refunded"];
+const permissionGroups = [
+  { label: "Dashboard", permissions: ["dashboard.view"] },
+  { label: "Menu", permissions: ["menu.view", "menu.create", "menu.edit", "menu.delete", "category.view", "category.create", "category.edit", "category.delete"] },
+  { label: "Orders", permissions: ["order.view", "order.update", "order.cancel"] },
+  { label: "Payment", permissions: ["payment.verify"] },
+  { label: "Coupons", permissions: ["coupon.view", "coupon.create", "coupon.edit", "coupon.delete"] },
+  { label: "Delivery", permissions: ["delivery.manage"] },
+  { label: "Stock", permissions: ["stock.manage"] },
+  { label: "Content", permissions: ["feedback.manage", "contact.manage", "cms.manage", "seo.manage", "gallery.manage"] },
+  { label: "Users", permissions: ["user.manage", "role.manage"] },
+  { label: "Reports & Settings", permissions: ["reports.view", "settings.manage"] }
+];
+
 const getId = (item: Record<string, unknown>) => String(item._id || item.id || "");
 const text = (value: unknown) => (value == null ? "" : String(value));
 const localized = (value: unknown, key: "en" | "bn") => (value && typeof value === "object" && key in value ? text((value as Record<string, unknown>)[key]) : "");
 const bool = (value: unknown) => Boolean(value);
 const number = (value: unknown) => Number(value || 0);
+const selectedPermissions = (value: unknown) => text(value).split(",").map((item) => item.trim()).filter(Boolean);
 
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
@@ -301,6 +315,22 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
       ...current,
       [field.name]: field.type === "number" ? Number(value || 0) : value
     }));
+  };
+
+  const togglePermission = (permission: string) => {
+    setForm((current) => {
+      const selected = new Set(selectedPermissions(current.permissions));
+      if (selected.has(permission)) {
+        selected.delete(permission);
+      } else {
+        selected.add(permission);
+      }
+
+      return {
+        ...current,
+        permissions: Array.from(selected).join(",")
+      };
+    });
   };
 
   const submitCreate = async (event: FormEvent<HTMLFormElement>) => {
@@ -497,6 +527,47 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                       {field.label}
                       <textarea className="mt-2 min-h-20 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form[field.name])} onChange={(event) => updateField(field, event.target.value)} />
                     </label>
+                  );
+                }
+
+                if (field.type === "permissions") {
+                  const selected = new Set(selectedPermissions(form.permissions));
+                  const allPermissions = permissionGroups.flatMap((group) => group.permissions);
+                  const allSelected = allPermissions.every((permission) => selected.has(permission));
+
+                  return (
+                    <fieldset className="rounded-md border border-black/10 p-3" key={field.name}>
+                      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                        <legend className="text-sm font-black">{field.label}</legend>
+                        <button
+                          className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold"
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              permissions: allSelected ? "" : allPermissions.join(",")
+                            }))
+                          }
+                          type="button"
+                        >
+                          {allSelected ? "Clear all" : "Select all"}
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        {permissionGroups.map((group) => (
+                          <div className="rounded-md bg-cream p-3" key={group.label}>
+                            <p className="text-xs font-black uppercase text-ink/60">{group.label}</p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                              {group.permissions.map((permission) => (
+                                <label className="flex items-center gap-2 text-sm font-semibold" key={permission}>
+                                  <input checked={selected.has(permission)} onChange={() => togglePermission(permission)} type="checkbox" />
+                                  {permission}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </fieldset>
                   );
                 }
 
