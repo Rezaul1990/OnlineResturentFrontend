@@ -8,15 +8,18 @@ export function SiteHeader() {
           Online Resturent
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-semibold text-ink/70 sm:flex">
-          <a className="hover:text-ink" href="#menu">
+          <Link className="hover:text-ink" href="/menu">
             Menu
-          </a>
-          <a className="hover:text-ink" href="#service">
-            Service
-          </a>
-          <a className="hover:text-ink" href="#contact">
+          </Link>
+          <Link className="hover:text-ink" href="/track-order">
+            Track
+          </Link>
+          <Link className="hover:text-ink" href="/contact">
             Contact
-          </a>
+          </Link>
+          <Link className="rounded-md bg-tomato px-3 py-2 text-white" href="/cart">
+            Cart
+          </Link>
         </nav>
       </div>
     </header>

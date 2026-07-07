@@ -2,6 +2,7 @@ import { MenuCard } from "@/components/common/MenuCard";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getFeaturedMenuItems } from "@/services/menuService";
+import Link from "next/link";
 
 export default async function HomePage() {
   const menu = await getFeaturedMenuItems();
@@ -10,25 +11,32 @@ export default async function HomePage() {
     <main>
       <SiteHeader />
 
-      <section className="border-b border-black/10 bg-cream">
+      <section
+        className="border-b border-black/10 bg-cover bg-center"
+        style={{ backgroundImage: "linear-gradient(90deg,rgba(251,250,244,.96),rgba(251,250,244,.82),rgba(251,250,244,.45)),url(https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80)" }}
+      >
         <div className="mx-auto grid min-h-[560px] max-w-6xl gap-10 px-5 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div>
             <StatusBadge tone={menu.source === "api" ? "success" : "warning"}>
               {menu.source === "api" ? "Live menu connected" : "Sample menu mode"}
             </StatusBadge>
+            <div className="mt-5 flex gap-2 text-xs font-bold">
+              <button className="rounded-md border border-black/15 bg-white px-3 py-2">EN</button>
+              <button className="rounded-md border border-black/15 bg-white px-3 py-2">BN</button>
+            </div>
             <h1 className="mt-6 max-w-2xl text-5xl font-black leading-tight text-ink sm:text-6xl">
-              Fresh restaurant meals, ready for online ordering.
+              Online Resturent
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-ink/70">
-              A production-ready starter for menu browsing, restaurant operations, and future ordering workflows.
+              Fresh restaurant meals with guest ordering, manual bKash/Nagad payment support, and order tracking.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a className="rounded-md bg-tomato px-5 py-3 text-sm font-bold text-white" href="#menu">
+              <Link className="rounded-md bg-tomato px-5 py-3 text-sm font-bold text-white" href="/menu">
                 View menu
-              </a>
-              <a className="rounded-md border border-black/15 px-5 py-3 text-sm font-bold text-ink" href="#service">
-                Explore service
-              </a>
+              </Link>
+              <Link className="rounded-md border border-black/15 bg-white px-5 py-3 text-sm font-bold text-ink" href="/cart">
+                Checkout
+              </Link>
             </div>
             {menu.notice ? <p className="mt-5 max-w-xl text-sm text-tomato">{menu.notice}</p> : null}
           </div>
@@ -88,4 +96,3 @@ export default async function HomePage() {
     </main>
   );
 }
-
