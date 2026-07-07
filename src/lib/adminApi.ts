@@ -126,6 +126,13 @@ export const adjustStock = (token: string, body: Record<string, unknown>) =>
     body: JSON.stringify(body)
   });
 
+export const importRestockCsv = (token: string, rows: Array<Record<string, unknown>>) =>
+  request<{ updated: number; items: Array<Record<string, unknown>> }>("/admin/stock/import-restock", {
+    method: "POST",
+    headers: authHeader(token),
+    body: JSON.stringify({ rows })
+  });
+
 export const listStockLogs = (token: string) =>
   request<AdminListResponse>("/admin/stock/logs", {
     headers: authHeader(token)

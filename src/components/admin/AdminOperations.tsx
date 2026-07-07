@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   adjustStock,
   createAdminResource,
   deleteAdminResource,
+  importRestockCsv,
   listAdminOrders,
   listAdminResource,
   listStockLogs,
@@ -234,6 +235,77 @@ const relationNames = (items: unknown, fallback = "All items") => {
   if (!Array.isArray(items) || items.length === 0) return fallback;
   return items.map((item) => getTitle(item as Record<string, unknown>)).join(", ");
 };
+const csvEscape = (value: unknown) => {
+  const clean = text(value).replace(/\r?\n/g, " ");
+  return /[",]/.test(clean) ? `"${clean.replace(/"/g, '""')}"` : clean;
+};
+const downloadFile = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+const toRestockCsv = (items: StockInventoryItem[]) => {
+  const headers = ["itemType", "itemId", "itemName", "parent", "currentQuantity", "lowStockThreshold", "status", "restockAmount", "reason"];
+  const rows = items.map((item) => {
+    const statusInfo = stockStatus(item);
+    return [
+      item.type,
+      item.id,
+      item.label,
+      item.parent || "",
+      item.quantity,
+      item.threshold,
+      statusInfo.label,
+      "",
+      "Restock received"
+    ];
+  });
+
+  return [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+};
+const parseCsv = (value: string) => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell.trim());
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell.trim());
+  if (row.some(Boolean)) rows.push(row);
+
+  const [headers = [], ...dataRows] = rows;
+  return dataRows.map((dataRow) =>
+    Object.fromEntries(headers.map((header, index) => [header, dataRow[index] || ""]))
+  );
+};
 
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
@@ -341,6 +413,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [importingStock, setImportingStock] = useState(false);
 
   const activeResource = useMemo(() => resources.find((resource) => resource.key === active), [active]);
 
@@ -556,6 +629,52 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Stock adjustment failed");
+    }
+  };
+
+  const lowAndOutStockItems = stockInventory.filter((item) => !item.available || item.quantity <= item.threshold);
+
+  const downloadRestockCsv = (scope: "low-out" | "all") => {
+    const exportItems = scope === "all" ? stockInventory : lowAndOutStockItems;
+    if (exportItems.length === 0) {
+      setError(scope === "all" ? "No stock items available to download." : "No low or out-of-stock items found.");
+      return;
+    }
+
+    setError("");
+    downloadFile(scope === "all" ? "all-stock-restock-template.csv" : "low-out-stock-restock-template.csv", toRestockCsv(exportItems));
+  };
+
+  const importRestockFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setError("");
+    setMessage("");
+    setImportingStock(true);
+
+    try {
+      const rows = parseCsv(await file.text())
+        .map((row) => ({
+          itemType: row.itemType,
+          itemId: row.itemId,
+          restockAmount: Number(row.restockAmount || 0),
+          reason: row.reason || "CSV restock import"
+        }))
+        .filter((row) => Number.isFinite(row.restockAmount) && row.restockAmount > 0);
+
+      if (rows.length === 0) {
+        throw new Error("No positive restockAmount values found in CSV.");
+      }
+
+      const result = await importRestockCsv(token, rows);
+      setMessage(`${result.updated} stock item${result.updated === 1 ? "" : "s"} restocked from CSV.`);
+      await load();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "CSV import failed");
+    } finally {
+      setImportingStock(false);
     }
   };
 
@@ -840,6 +959,28 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
           {active === "stock" ? (
             <div className="grid gap-5">
+              <div className="rounded-md border border-black/10 bg-cream p-4">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                  <div>
+                    <h4 className="font-black">CSV restock workflow</h4>
+                    <p className="mt-1 text-sm text-ink/60">
+                      Download a template, fill only the restockAmount column, then import it. Imported amounts are added to current stock.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold" onClick={() => downloadRestockCsv("low-out")} type="button">
+                      Download low/out CSV
+                    </button>
+                    <button className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold" onClick={() => downloadRestockCsv("all")} type="button">
+                      Download all stock CSV
+                    </button>
+                    <label className="cursor-pointer rounded-md bg-tomato px-3 py-2 text-xs font-bold text-white">
+                      {importingStock ? "Importing..." : "Import CSV"}
+                      <input accept=".csv,text/csv" className="hidden" disabled={importingStock} onChange={importRestockFile} type="file" />
+                    </label>
+                  </div>
+                </div>
+              </div>
               <div className="grid gap-3 md:grid-cols-4">
                 {[
                   ["Tracked items", stockInventory.length],
