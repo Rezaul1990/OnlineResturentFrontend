@@ -178,7 +178,7 @@ const resources: ResourceConfig[] = [
 const defaultValues: Record<string, Record<string, string | number | boolean>> = {
   categories: { nameEn: "", nameBn: "", slug: "", descriptionEn: "", descriptionBn: "", imageUrl: "", sortOrder: 1, isActive: true },
   foods: { name: "", nameBn: "", slug: "", category: "", description: "", descriptionBn: "", price: 0, stockQuantity: 0, lowStockThreshold: 5, imageUrl: "", isAvailable: true, isFeatured: false, isPopular: false },
-  addons: { nameEn: "", nameBn: "", price: 0, stockQuantity: 0, lowStockThreshold: 5, isAvailable: true },
+  addons: { nameEn: "", nameBn: "", price: 0, stockQuantity: 0, lowStockThreshold: 5, foodItems: "", categories: "", isAvailable: true },
   coupons: { code: "", title: "", discountType: "percentage", discountValue: 0, appliesTo: "all", minimumOrderAmount: 0, maximumDiscountAmount: 0, usageLimit: 0, perPhoneUsageLimit: 0, isActive: true },
   "delivery-areas": { name: "", zone: "Inside Dhaka", charge: 60, isActive: true },
   cms: { type: "section", slug: "", titleEn: "", titleBn: "", subtitleEn: "", subtitleBn: "", contentEn: "", contentBn: "", imageUrl: "", sortOrder: 1, isActive: true },
@@ -225,6 +225,15 @@ const stockStatus = (item: StockInventoryItem) => {
   if (item.quantity <= item.threshold) return { label: "Low stock", className: "bg-amber-100 text-amber-700" };
   return { label: "In stock", className: "bg-herb/10 text-herb" };
 };
+const reviewStatusClass = (status: unknown) => {
+  if (status === "Approved") return "bg-herb/10 text-herb";
+  if (status === "Rejected") return "bg-tomato/10 text-tomato";
+  return "bg-amber-100 text-amber-700";
+};
+const relationNames = (items: unknown, fallback = "All items") => {
+  if (!Array.isArray(items) || items.length === 0) return fallback;
+  return items.map((item) => getTitle(item as Record<string, unknown>)).join(", ");
+};
 
 const getTitle = (item: Record<string, unknown>) => {
   const name = item.name;
@@ -235,7 +244,11 @@ const getTitle = (item: Record<string, unknown>) => {
 
 const flattenItem = (resource: string, item: Record<string, unknown>) => {
   if (resource === "categories") return { nameEn: localized(item.name, "en"), nameBn: localized(item.name, "bn"), slug: text(item.slug), descriptionEn: localized(item.description, "en"), descriptionBn: localized(item.description, "bn"), imageUrl: text(item.imageUrl), sortOrder: number(item.sortOrder), isActive: bool(item.isActive) };
-  if (resource === "addons") return { nameEn: localized(item.name, "en"), nameBn: localized(item.name, "bn"), price: number(item.price), stockQuantity: number(item.stockQuantity), lowStockThreshold: number(item.lowStockThreshold), isAvailable: bool(item.isAvailable) };
+  if (resource === "addons") {
+    const selectedFoodItems = Array.isArray(item.foodItems) ? item.foodItems.map((food) => getId(food as Record<string, unknown>)).join(",") : "";
+    const selectedCategories = Array.isArray(item.categories) ? item.categories.map((category) => getId(category as Record<string, unknown>)).join(",") : "";
+    return { nameEn: localized(item.name, "en"), nameBn: localized(item.name, "bn"), price: number(item.price), stockQuantity: number(item.stockQuantity), lowStockThreshold: number(item.lowStockThreshold), foodItems: selectedFoodItems, categories: selectedCategories, isAvailable: bool(item.isAvailable) };
+  }
   if (resource === "cms") return { type: text(item.type), slug: text(item.slug), titleEn: localized(item.title, "en"), titleBn: localized(item.title, "bn"), subtitleEn: localized(item.subtitle, "en"), subtitleBn: localized(item.subtitle, "bn"), contentEn: localized(item.content, "en"), contentBn: localized(item.content, "bn"), imageUrl: text(item.imageUrl), sortOrder: number(item.sortOrder), isActive: bool(item.isActive) };
   if (resource === "roles") return { name: text(item.name), description: text(item.description), permissions: Array.isArray(item.permissions) ? item.permissions.join(",") : "", isActive: bool(item.isActive) };
   if (resource === "users") {
@@ -247,7 +260,7 @@ const flattenItem = (resource: string, item: Record<string, unknown>) => {
 
 const buildPayload = (resource: string, form: Record<string, string | number | boolean>) => {
   if (resource === "categories") return { name: { en: form.nameEn, bn: form.nameBn }, slug: form.slug, description: { en: form.descriptionEn, bn: form.descriptionBn }, imageUrl: form.imageUrl, sortOrder: Number(form.sortOrder), isActive: Boolean(form.isActive) };
-  if (resource === "addons") return { name: { en: form.nameEn, bn: form.nameBn }, price: Number(form.price), stockQuantity: Number(form.stockQuantity), lowStockThreshold: Number(form.lowStockThreshold), isAvailable: Boolean(form.isAvailable) };
+  if (resource === "addons") return { name: { en: form.nameEn, bn: form.nameBn }, price: Number(form.price), stockQuantity: Number(form.stockQuantity), lowStockThreshold: Number(form.lowStockThreshold), foodItems: selectedPermissions(form.foodItems), categories: selectedPermissions(form.categories), isAvailable: Boolean(form.isAvailable) };
   if (resource === "cms") return { type: form.type, slug: form.slug, title: { en: form.titleEn, bn: form.titleBn }, subtitle: { en: form.subtitleEn, bn: form.subtitleBn }, content: { en: form.contentEn, bn: form.contentBn }, imageUrl: form.imageUrl, sortOrder: Number(form.sortOrder), isActive: Boolean(form.isActive) };
   if (resource === "roles") return { name: form.name, description: form.description, permissions: text(form.permissions).split(",").map((item) => item.trim()).filter(Boolean), isActive: Boolean(form.isActive) };
   if (resource === "users") {
@@ -310,6 +323,8 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
   const [form, setForm] = useState<Record<string, string | number | boolean>>(defaultValues[active] || {});
   const [roles, setRoles] = useState<Array<Record<string, unknown>>>([]);
   const [stockInventory, setStockInventory] = useState<StockInventoryItem[]>([]);
+  const [foodChoices, setFoodChoices] = useState<Array<Record<string, unknown>>>([]);
+  const [categoryChoices, setCategoryChoices] = useState<Array<Record<string, unknown>>>([]);
   const [selectedId, setSelectedId] = useState("");
   const [drawerItem, setDrawerItem] = useState<Record<string, unknown> | null>(null);
   const [status, setStatus] = useState("Confirmed");
@@ -357,6 +372,15 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
         const data = await listAdminResource(token, "roles");
         setRoles(data.items);
       }
+
+      if (active === "addons") {
+        const [foods, categories] = await Promise.all([
+          listAdminResource(token, "foods"),
+          listAdminResource(token, "categories")
+        ]);
+        setFoodChoices(foods.items);
+        setCategoryChoices(categories.items);
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load data");
     } finally {
@@ -401,6 +425,22 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
       return {
         ...current,
         permissions: Array.from(selected).join(",")
+      };
+    });
+  };
+
+  const toggleFormListValue = (field: "foodItems" | "categories", id: string) => {
+    setForm((current) => {
+      const selected = new Set(selectedPermissions(current[field]));
+      if (selected.has(id)) {
+        selected.delete(id);
+      } else {
+        selected.add(id);
+      }
+
+      return {
+        ...current,
+        [field]: Array.from(selected).join(",")
       };
     });
   };
@@ -454,6 +494,18 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
       await load();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to mark message as read");
+    }
+  };
+
+  const updateReview = async (item: Record<string, unknown>, body: Record<string, unknown>) => {
+    setError("");
+    setMessage("");
+    try {
+      await updateAdminResource(token, "reviews", getId(item), body);
+      setMessage("Review updated.");
+      await load();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Review update failed");
     }
   };
 
@@ -655,6 +707,137 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
           ) : null}
 
+          {active === "addons" ? (
+            <div className="grid gap-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["Total add-ons", items.length],
+                  ["Available", items.filter((item) => item.isAvailable !== false).length],
+                  ["Low stock", items.filter((item) => number(item.stockQuantity) > 0 && number(item.stockQuantity) <= number(item.lowStockThreshold)).length],
+                  ["Out of stock", items.filter((item) => number(item.stockQuantity) <= 0).length]
+                ].map(([label, value]) => (
+                  <div className="rounded-md bg-cream p-4" key={label}>
+                    <p className="text-xs font-bold uppercase text-ink/55">{label}</p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="overflow-x-auto rounded-md border border-black/10">
+                <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+                  <thead className="bg-cream text-xs uppercase text-ink/60">
+                    <tr>
+                      <th className="px-3 py-3">Add-on</th>
+                      <th className="px-3 py-3">Price</th>
+                      <th className="px-3 py-3">Stock</th>
+                      <th className="px-3 py-3">Assigned to</th>
+                      <th className="px-3 py-3">Status</th>
+                      <th className="px-3 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-ink/60" colSpan={6}>No add-ons found.</td>
+                      </tr>
+                    ) : null}
+                    {items.map((item) => {
+                      const stockInfo = stockStatus({
+                        id: getId(item),
+                        type: "addOn",
+                        label: getTitle(item),
+                        quantity: number(item.stockQuantity),
+                        threshold: number(item.lowStockThreshold),
+                        available: item.isAvailable !== false
+                      });
+
+                      return (
+                        <tr className="border-t border-black/10 hover:bg-cream/60" key={getId(item)}>
+                          <td className="px-3 py-3">
+                            <p className="font-black">{getTitle(item)}</p>
+                            {localized(item.name, "bn") ? <p className="text-xs text-ink/55">{localized(item.name, "bn")}</p> : null}
+                          </td>
+                          <td className="px-3 py-3 font-bold">BDT {text(item.price)}</td>
+                          <td className="px-3 py-3">
+                            <p className="font-bold">{text(item.stockQuantity)}</p>
+                            <p className="text-xs text-ink/55">Alert at {text(item.lowStockThreshold)}</p>
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="max-w-xs truncate">{relationNames(item.foodItems, "All foods")}</p>
+                            {Array.isArray(item.categories) && item.categories.length > 0 ? (
+                              <p className="max-w-xs truncate text-xs text-ink/55">Categories: {relationNames(item.categories, "")}</p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`rounded-md px-2 py-1 text-xs font-bold ${stockInfo.className}`}>{stockInfo.label}</span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <button className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold" onClick={() => chooseItem(item)} type="button">
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {active === "reviews" ? (
+            <div className="grid gap-5">
+              <div className="grid gap-3 md:grid-cols-4">
+                {[
+                  ["Pending", items.filter((item) => item.status === "Pending").length],
+                  ["Approved", items.filter((item) => item.status === "Approved").length],
+                  ["Rejected", items.filter((item) => item.status === "Rejected").length],
+                  ["Featured", items.filter((item) => Boolean(item.isFeatured)).length]
+                ].map(([label, value]) => (
+                  <div className="rounded-md bg-cream p-4" key={label}>
+                    <p className="text-xs font-bold uppercase text-ink/55">{label}</p>
+                    <p className="mt-1 text-2xl font-black">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid gap-3">
+                {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No reviews found.</p> : null}
+                {items.map((item) => (
+                  <article className="rounded-md border border-black/10 bg-white p-4" key={getId(item)}>
+                    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="font-black">{text(item.customerName)}</h4>
+                          <span className={`rounded-md px-2 py-1 text-xs font-bold ${reviewStatusClass(item.status)}`}>{text(item.status)}</span>
+                          <span className="rounded-md bg-cream px-2 py-1 text-xs font-bold">{text(item.rating)} star</span>
+                          {item.isFeatured ? <span className="rounded-md bg-herb/10 px-2 py-1 text-xs font-bold text-herb">Featured</span> : null}
+                        </div>
+                        <p className="mt-1 text-xs text-ink/55">{text(item.type)} {item.foodItem ? `for ${getTitle(item.foodItem as Record<string, unknown>)}` : ""}</p>
+                        <p className="mt-3 max-w-4xl text-sm leading-6">{text(item.message)}</p>
+                        <p className="mt-2 text-xs text-ink/55">{text(item.phone)} {item.createdAt ? `- ${new Date(text(item.createdAt)).toLocaleString()}` : ""}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        <button className="rounded-md bg-herb px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:bg-ink/25" disabled={item.status === "Approved"} onClick={() => updateReview(item, { status: "Approved" })} type="button">
+                          Approve
+                        </button>
+                        <button className="rounded-md border border-tomato/40 px-3 py-2 text-xs font-bold text-tomato disabled:cursor-not-allowed disabled:opacity-50" disabled={item.status === "Rejected"} onClick={() => updateReview(item, { status: "Rejected", isFeatured: false })} type="button">
+                          Reject
+                        </button>
+                        <button className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50" disabled={item.status !== "Approved"} onClick={() => updateReview(item, { isFeatured: !item.isFeatured })} type="button">
+                          {item.isFeatured ? "Unfeature" : "Feature"}
+                        </button>
+                        <button className="rounded-md border border-black/15 px-3 py-2 text-xs font-bold" onClick={() => chooseItem(item)} type="button">
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {active === "stock" ? (
             <div className="grid gap-5">
               <div className="grid gap-3 md:grid-cols-4">
@@ -762,7 +945,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
             </div>
           ) : null}
 
-          {active !== "orders" && active !== "contacts" && active !== "reports" && active !== "settings" && active !== "stock" ? (
+          {active !== "orders" && active !== "contacts" && active !== "reports" && active !== "settings" && active !== "stock" && active !== "addons" && active !== "reviews" ? (
             <div className="grid max-h-[560px] gap-2 overflow-auto">
               {items.length === 0 ? <p className="rounded-md bg-cream p-4 text-sm text-ink/60">No records found.</p> : null}
               {items.map((item) => (
@@ -777,7 +960,7 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
 
         {active !== "orders" && active !== "contacts" ? (
         <div>
-          {activeResource ? (
+          {activeResource && active !== "addons" && active !== "reviews" ? (
             <form className="grid gap-3" onSubmit={submitCreate}>
               {activeResource.fields.map((field) => {
                 const options = field.name === "role" ? roles.map((role) => ({ label: getTitle(role), value: getId(role) })) : field.options?.map((option) => ({ label: option, value: option }));
@@ -868,6 +1051,121 @@ export function AdminOperations({ token, activeKey, onActiveChange, dashboard, s
                 <button className="rounded-md border border-tomato/40 px-4 py-2 text-sm font-bold text-tomato" disabled={!selectedId} onClick={submitDelete} type="button">Delete</button>
               </div>
             </form>
+          ) : null}
+
+          {active === "addons" ? (
+            <form className="grid gap-3" onSubmit={submitCreate}>
+              <div>
+                <h4 className="text-lg font-black">{selectedId ? "Edit add-on" : "Create add-on"}</h4>
+                <p className="mt-1 text-sm text-ink/60">Assign add-ons to specific foods or categories. Leave both empty to make it available for all foods.</p>
+              </div>
+              <label className="text-sm font-bold">
+                Name English
+                <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form.nameEn)} onChange={(event) => setForm({ ...form, nameEn: event.target.value })} />
+              </label>
+              <label className="text-sm font-bold">
+                Name Bangla
+                <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form.nameBn)} onChange={(event) => setForm({ ...form, nameBn: event.target.value })} />
+              </label>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="text-sm font-bold">
+                  Price
+                  <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" min={0} type="number" value={text(form.price)} onChange={(event) => setForm({ ...form, price: Number(event.target.value) })} />
+                </label>
+                <label className="text-sm font-bold">
+                  Stock
+                  <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" min={0} type="number" value={text(form.stockQuantity)} onChange={(event) => setForm({ ...form, stockQuantity: Number(event.target.value) })} />
+                </label>
+                <label className="text-sm font-bold">
+                  Low alert
+                  <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" min={0} type="number" value={text(form.lowStockThreshold)} onChange={(event) => setForm({ ...form, lowStockThreshold: Number(event.target.value) })} />
+                </label>
+              </div>
+              <fieldset className="rounded-md border border-black/10 p-3">
+                <legend className="text-sm font-black">Assign to foods</legend>
+                <div className="mt-3 grid max-h-44 gap-2 overflow-auto">
+                  {foodChoices.length === 0 ? <p className="text-sm text-ink/60">No foods found.</p> : null}
+                  {foodChoices.map((food) => {
+                    const selected = new Set(selectedPermissions(form.foodItems));
+                    const id = getId(food);
+                    return (
+                      <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-semibold" key={id}>
+                        <input checked={selected.has(id)} onChange={() => toggleFormListValue("foodItems", id)} type="checkbox" />
+                        {getTitle(food)}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <fieldset className="rounded-md border border-black/10 p-3">
+                <legend className="text-sm font-black">Assign to categories</legend>
+                <div className="mt-3 grid max-h-36 gap-2 overflow-auto">
+                  {categoryChoices.length === 0 ? <p className="text-sm text-ink/60">No categories found.</p> : null}
+                  {categoryChoices.map((category) => {
+                    const selected = new Set(selectedPermissions(form.categories));
+                    const id = getId(category);
+                    return (
+                      <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-semibold" key={id}>
+                        <input checked={selected.has(id)} onChange={() => toggleFormListValue("categories", id)} type="checkbox" />
+                        {getTitle(category)}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-bold">
+                <input checked={Boolean(form.isAvailable)} onChange={(event) => setForm({ ...form, isAvailable: event.target.checked })} type="checkbox" />
+                Available for orders
+              </label>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white" type="submit">Create</button>
+                <button className="rounded-md border border-black/15 px-4 py-2 text-sm font-bold" disabled={!selectedId} onClick={submitUpdate} type="button">Update</button>
+                <button className="rounded-md border border-tomato/40 px-4 py-2 text-sm font-bold text-tomato" disabled={!selectedId} onClick={submitDelete} type="button">Delete</button>
+              </div>
+            </form>
+          ) : null}
+
+          {active === "reviews" ? (
+            <div className="grid gap-3">
+              <div>
+                <h4 className="text-lg font-black">Review moderation</h4>
+                <p className="mt-1 text-sm text-ink/60">Customer reviews come from the public site. Approve what should appear publicly.</p>
+              </div>
+              {selectedId ? (
+                <form className="grid gap-3" onSubmit={(event) => { event.preventDefault(); void submitUpdate(); }}>
+                  <label className="text-sm font-bold">
+                    Customer
+                    <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form.customerName)} onChange={(event) => setForm({ ...form, customerName: event.target.value })} />
+                  </label>
+                  <label className="text-sm font-bold">
+                    Rating
+                    <input className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" max={5} min={1} type="number" value={text(form.rating)} onChange={(event) => setForm({ ...form, rating: Number(event.target.value) })} />
+                  </label>
+                  <label className="text-sm font-bold">
+                    Message
+                    <textarea className="mt-2 min-h-24 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form.message)} onChange={(event) => setForm({ ...form, message: event.target.value })} />
+                  </label>
+                  <label className="text-sm font-bold">
+                    Status
+                    <select className="mt-2 w-full rounded-md border border-black/15 px-3 py-2 text-sm" value={text(form.status)} onChange={(event) => setForm({ ...form, status: event.target.value })}>
+                      <option>Pending</option>
+                      <option>Approved</option>
+                      <option>Rejected</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md bg-cream px-3 py-2 text-sm font-bold">
+                    <input checked={Boolean(form.isFeatured)} onChange={(event) => setForm({ ...form, isFeatured: event.target.checked })} type="checkbox" />
+                    Featured testimonial
+                  </label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button className="rounded-md bg-tomato px-4 py-2 text-sm font-bold text-white" type="submit">Update review</button>
+                    <button className="rounded-md border border-tomato/40 px-4 py-2 text-sm font-bold text-tomato" onClick={submitDelete} type="button">Delete</button>
+                  </div>
+                </form>
+              ) : (
+                <p className="rounded-md bg-cream p-4 text-sm text-ink/60">Select a review to edit its text, status, or featured flag.</p>
+              )}
+            </div>
           ) : null}
 
           {active === "stock" ? (
