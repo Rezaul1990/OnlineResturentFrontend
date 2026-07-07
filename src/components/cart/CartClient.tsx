@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
+import { bangladeshLocations } from "@/constants/bangladeshLocations";
 import type { MenuItem } from "@/types/menu";
 
 const CART_KEY = "online_resturent_cart";
@@ -22,6 +23,7 @@ type CheckoutState = {
   phone: string;
   orderType: "Delivery" | "Pickup";
   address: string;
+  district: string;
   area: string;
   zone: "Inside Dhaka" | "Outside Dhaka";
   preferredTime: string;
@@ -93,7 +95,8 @@ export function CartCheckout() {
     phone: "",
     orderType: "Delivery",
     address: "",
-    area: "",
+    district: "Dhaka",
+    area: "Mirpur",
     zone: "Inside Dhaka",
     preferredTime: "",
     note: "",
@@ -103,6 +106,7 @@ export function CartCheckout() {
   });
 
   const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.price * line.quantity, 0), [cart]);
+  const selectedDistrict = bangladeshLocations.find((location) => location.district === form.district) || bangladeshLocations[0];
 
   const updateQuantity = (foodItemId: string, quantity: number) => {
     const next = cart.map((line) => (line.foodItemId === foodItemId ? { ...line, quantity: Math.max(1, quantity) } : line));
@@ -128,6 +132,7 @@ export function CartCheckout() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          address: form.orderType === "Delivery" ? `${form.address}, ${form.area}, ${form.district}` : "",
           items: cart.map((line) => ({
             foodItemId: line.foodItemId,
             quantity: line.quantity,
@@ -173,12 +178,12 @@ export function CartCheckout() {
 
       <form className="rounded-lg border border-black/10 bg-white p-5" onSubmit={submit}>
         <h2 className="text-2xl font-black">Checkout</h2>
-        {(["customerName", "phone", "address", "area", "preferredTime", "couponCode", "transactionId"] as const).map((field) => (
+        {(["customerName", "phone", "address", "preferredTime", "couponCode", "transactionId"] as const).map((field) => (
           <input
             className="mt-3 w-full rounded-md border border-black/15 px-4 py-3 text-sm"
             key={field}
             placeholder={field}
-            required={["customerName", "phone"].includes(field) || (form.orderType === "Delivery" && ["address", "area"].includes(field)) || (["Manual bKash", "Manual Nagad"].includes(form.paymentMethod) && field === "transactionId")}
+            required={["customerName", "phone"].includes(field) || (form.orderType === "Delivery" && field === "address") || (["Manual bKash", "Manual Nagad"].includes(form.paymentMethod) && field === "transactionId")}
             value={form[field]}
             onChange={(event) => setForm({ ...form, [field]: event.target.value })}
           />
@@ -187,10 +192,37 @@ export function CartCheckout() {
           <option>Delivery</option>
           <option>Pickup</option>
         </select>
-        <select className="mt-3 w-full rounded-md border border-black/15 px-4 py-3 text-sm" value={form.zone} onChange={(event) => setForm({ ...form, zone: event.target.value as CheckoutState["zone"] })}>
-          <option>Inside Dhaka</option>
-          <option>Outside Dhaka</option>
-        </select>
+        {form.orderType === "Delivery" ? (
+          <>
+            <select
+              className="mt-3 w-full rounded-md border border-black/15 px-4 py-3 text-sm"
+              value={form.district}
+              onChange={(event) => {
+                const district = bangladeshLocations.find((location) => location.district === event.target.value) || bangladeshLocations[0];
+                setForm({ ...form, district: district.district, area: district.areas[0], zone: district.zone });
+              }}
+            >
+              {bangladeshLocations.map((location) => (
+                <option key={location.district} value={location.district}>
+                  {location.district}
+                </option>
+              ))}
+            </select>
+            <select
+              className="mt-3 w-full rounded-md border border-black/15 px-4 py-3 text-sm"
+              required
+              value={form.area}
+              onChange={(event) => setForm({ ...form, area: event.target.value })}
+            >
+              {selectedDistrict.areas.map((area) => (
+                <option key={area} value={area}>
+                  {area}
+                </option>
+              ))}
+            </select>
+            <input className="mt-3 w-full rounded-md border border-black/15 bg-cream px-4 py-3 text-sm" readOnly value={form.zone} />
+          </>
+        ) : null}
         <select className="mt-3 w-full rounded-md border border-black/15 px-4 py-3 text-sm" value={form.paymentMethod} onChange={(event) => setForm({ ...form, paymentMethod: event.target.value as CheckoutState["paymentMethod"] })}>
           <option>Cash on Delivery</option>
           <option>Pay at Pickup</option>
